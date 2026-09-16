@@ -60,7 +60,21 @@ The output is written to `build\windows\`, including a SHA-256 checksum file.
 Fog of war
 ==========
 
-This fork includes a Dungeon Keeper II-style fog-of-war implementation shared by macOS and Windows: unexplored terrain is concealed as taggable earth, creature perception reveals nearby terrain, explored areas retain map knowledge, scripted camera sequences retain terrain fog, and current perception drives the moving fog layer. The implementation is shared Java/JMonkeyEngine code rather than a platform-specific renderer fork.
+This fork includes a Dungeon Keeper II-style fog-of-war implementation shared by macOS and Windows: unexplored terrain is concealed as taggable earth, creature perception reveals nearby terrain, explored areas retain map knowledge, and current perception drives the moving fog layer. Scripted cinematic action-point reveals can temporarily show the intended terrain without permanently marking it explored, so campaign camera sequences do not expose the whole map or leave permanent holes in the fog. The implementation is shared Java/JMonkeyEngine code rather than a platform-specific renderer fork.
+
+Live minimap and movies
+=======================
+
+The in-game Dungeon Keeper II minimap is implemented as a live camera-centred radar using the original Bullfrog map palette. It respects fog of war, shows player territory and dig tagging, tracks creature/hero blips, and updates independently of Nifty's static texture atlas.
+
+Dungeon Keeper II TGQ movies are aspect-corrected for the original 2:1 horizontal pixel aspect (stored as 320x480 but presented as 4:3), centred, and fitted to the live fullscreen window. The macOS build also updates the movie GUI camera for fullscreen/Retina displays so cinematics no longer render as a small lower-left image.
+
+Campaign smoke validation
+=========================
+
+The native arm64 build at `4479ce73` was smoke-tested against a legally owned GOG Dungeon Keeper II 1.7 installation across all 24 campaign map files, including the branching maps `Level6a/Level6b`, `level11A/level11B/level11C`, and `Level15a/level15b`. Every map started, remained alive through the automated smoke window, initialized fog-of-war state, and produced zero runtime exceptions. A single watchdog timing warning may still occur on particularly busy maps; this is not a gameplay exception.
+
+This is automated startup/runtime smoke validation rather than a claim that every campaign objective and win/lose path has been played through to completion.
 
 [Here is my YouTube channel where I sometimes publish videos of the progress](https://www.youtube.com/user/Kaljis83/videos).
 
