@@ -38,6 +38,7 @@ import toniarts.openkeeper.game.controller.player.PlayerTrapControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.state.loop.GameLoopManager;
 import toniarts.openkeeper.game.state.session.GameSessionServerService;
 import toniarts.openkeeper.game.state.session.GameSessionServiceListener;
@@ -323,7 +324,10 @@ public final class GameServerState extends AbstractAppState {
                     break;
                 }
                 case REMOVE_FOW: {
-                    // TODO:
+                    for (IMapTileController tile : gameWorldController.getMapController().getMapData()) {
+                        tile.setExplored(true, playerId);
+                        tile.setScriptedVisible(true, playerId);
+                    }
                     break;
                 }
                 case UNLOCK_ROOMS: {
