@@ -516,7 +516,9 @@
                 </effect>
                 <interact onClick="back()" />
             </image>
-            <panel id="#content" childLayout="absolute" childClip="true" width="*" height="*" padding="0px,4px,0px,4px" />
+            <panel id="#content" childLayout="absolute" childClip="true" width="*" height="*" padding="0px,4px,0px,4px">
+                <panel x="0" y="50%" id="#row-1" childLayout="horizontal" valign="center" height="100%" width="100%" />
+            </panel>
             <image id="#forward" filename="Textures/GUI/Pages/page_forward.png" valign="center" height="100%">
                 <effect>
                     <onHover name="imageOverlay" filename="Textures/GUI/Pages/Page_Forward-Hilight.png" post="true"/>
