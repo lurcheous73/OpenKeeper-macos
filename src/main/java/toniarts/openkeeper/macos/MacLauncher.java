@@ -10,7 +10,10 @@ package toniarts.openkeeper.macos;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.asset.plugins.FileLocator;
+import com.jme3.system.AppSettings;
 import com.jme3.system.JmeSystem;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWVidMode;
 import java.io.IOException;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
@@ -22,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.tools.convert.AssetsConverter;
 import toniarts.openkeeper.utils.PathUtils;
 import toniarts.openkeeper.utils.SettingUtils;
@@ -63,11 +67,60 @@ public final class MacLauncher {
             return;
         }
 
+        applyFirstRunDisplayDefaults();
         Main.main(args);
     }
 
     private static boolean isMac() {
         return System.getProperty("os.name", "").toLowerCase().contains("mac");
+    }
+
+    /**
+     * OpenKeeper inherits jME's 640x480 window default when no graphics settings
+     * have ever been saved. On macOS that makes the first launch tiny. Seed a
+     * native fullscreen mode once, then leave all later user choices alone.
+     */
+    private static void applyFirstRunDisplayDefaults() {
+        Path settingsFile = Path.of(System.getProperty("user.home"), ".OpenKeeper", "openkeeper.properties");
+        try {
+            if (Files.exists(settingsFile)) {
+                String persisted = Files.readString(settingsFile, StandardCharsets.UTF_8);
+                if (persisted.contains("Width(int)=")
+                        || persisted.contains("Height(int)=")
+                        || persisted.contains("Fullscreen(bool)=")) {
+                    return;
+                }
+            }
+
+            if (!GLFW.glfwInit()) {
+                LOGGER.log(Level.WARNING, "Could not initialise GLFW to choose the macOS fullscreen default.");
+                return;
+            }
+
+            try {
+                long monitor = GLFW.glfwGetPrimaryMonitor();
+                GLFWVidMode mode = monitor == 0L ? null : GLFW.glfwGetVideoMode(monitor);
+                if (mode == null) {
+                    LOGGER.log(Level.WARNING, "Could not determine the primary macOS display mode.");
+                    return;
+                }
+
+                AppSettings appSettings = Settings.getInstance().getAppSettings();
+                appSettings.setResolution(mode.width(), mode.height());
+                appSettings.setFrequency(mode.refreshRate());
+                appSettings.setFullscreen(true);
+                appSettings.setVSync(true);
+
+                Files.createDirectories(settingsFile.getParent());
+                Settings.getInstance().save();
+                LOGGER.log(Level.INFO, "Seeded first-run macOS fullscreen mode: {0}x{1} @ {2} Hz",
+                        mode.width(), mode.height(), mode.refreshRate());
+            } finally {
+                GLFW.glfwTerminate();
+            }
+        } catch (IOException | RuntimeException ex) {
+            LOGGER.log(Level.WARNING, "Could not seed macOS fullscreen settings; using OpenKeeper defaults.", ex);
+        }
     }
 
     /**
