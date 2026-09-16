@@ -30,9 +30,11 @@ import com.jme3.input.controls.TouchTrigger;
 import com.jme3.math.ColorRGBA;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.shape.Quad;
+import com.jme3.system.lwjgl.LwjglWindow;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import org.lwjgl.glfw.GLFW;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.video.tgq.TgqFrame;
 
@@ -125,14 +127,20 @@ public abstract class MovieState extends AbstractAppState {
             return;
         }
 
-        // On macOS/Retina the logical camera size can be smaller than the
-        // backing framebuffer. GUI geometry is ultimately rasterised into the
-        // framebuffer, so use its real dimensions for true fullscreen movies.
-        int width = app.getContext().getFramebufferWidth();
-        int height = app.getContext().getFramebufferHeight();
-        if (width <= 0 || height <= 0) {
-            width = app.getCamera().getWidth();
-            height = app.getCamera().getHeight();
+        // jME may retain the saved logical camera size after macOS has moved
+        // the app into a differently-sized fullscreen Space. GUI coordinates
+        // are window-content coordinates (not Retina backing pixels), so ask
+        // GLFW for the live content size directly.
+        int width = app.getCamera().getWidth();
+        int height = app.getCamera().getHeight();
+        if (app.getContext() instanceof LwjglWindow lwjglWindow) {
+            int[] windowWidth = new int[1];
+            int[] windowHeight = new int[1];
+            GLFW.glfwGetWindowSize(lwjglWindow.getWindowHandle(), windowWidth, windowHeight);
+            if (windowWidth[0] > 0 && windowHeight[0] > 0) {
+                width = windowWidth[0];
+                height = windowHeight[0];
+            }
         }
         if (width <= 0 || height <= 0) {
             return;
