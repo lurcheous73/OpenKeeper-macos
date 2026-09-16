@@ -26,6 +26,7 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityContainer;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.EntitySet;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.HashMap;
@@ -33,6 +34,7 @@ import java.util.Map;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.ObjectViewState;
+import toniarts.openkeeper.game.component.MapVisibility;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.TrapViewState;
@@ -92,6 +94,7 @@ public class PlayerEntityViewState extends AbstractAppState {
     private final ILoader<CreatureViewState> creatureLoader;
     private final ILoader<DoorViewState> doorLoader;
     private final ILoader<TrapViewState> trapLoader;
+    private final EntitySet mapVisibilityEntities;
 
     private final Map<EntityId, IUnitFlowerControl> flowerControls = new HashMap<>();
     private final Map<EntityId, IEntityViewControl> entityViewControls = new HashMap<>();
@@ -116,6 +119,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         creatureLoader = new CreatureLoader(kwdFile);
         doorLoader = new DoorLoader(kwdFile);
         trapLoader = new TrapLoader(kwdFile);
+        mapVisibilityEntities = entityData.getEntities(MapVisibility.class);
 
         // Create the scene graph
         root = new Node("Things");
@@ -158,6 +162,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         creatureModelContainer.update();
         doorModelContainer.update();
         trapModelContainer.update();
+        mapVisibilityEntities.applyChanges();
         updateFogOfWarVisibility();
     }
 
@@ -198,6 +203,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         creatureModelContainer.stop();
         doorModelContainer.stop();
         trapModelContainer.stop();
+        mapVisibilityEntities.release();
 
         // Detach entities
         rootNode.detachChild(root);

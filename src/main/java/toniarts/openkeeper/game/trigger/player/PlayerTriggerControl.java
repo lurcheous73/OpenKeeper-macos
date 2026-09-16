@@ -375,7 +375,8 @@ public class PlayerTriggerControl extends TriggerControl {
                                 continue;
                             }
                             Terrain terrain = mapController.getTerrain(tile);
-                            if (!terrain.getFlags().contains(Terrain.TerrainFlag.ALWAYS_EXPLORED)) {
+                            if (!tile.isPerceived(playerId)
+                                    && !terrain.getFlags().contains(Terrain.TerrainFlag.ALWAYS_EXPLORED)) {
                                 tile.setExplored(false, playerId);
                             }
                         }
