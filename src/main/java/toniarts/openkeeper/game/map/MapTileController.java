@@ -120,6 +120,11 @@ public final class MapTileController extends AbstractMapTileInformation implemen
         }
         visibility.scriptedVisible.put(playerId, visible);
         entityData.setComponent(entityId, visibility);
+
+        // Scripted reveal/conceal changes the terrain representation for this player.
+        // Touch MapTile so the client rebuilds only these infrequent cinematic tiles;
+        // normal perception changes remain on MapVisibility and never rebatch terrain.
+        entityData.setComponent(entityId, new MapTile(getEntityComponent(MapTile.class)));
     }
 
     @Override

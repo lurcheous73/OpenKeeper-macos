@@ -198,7 +198,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     }
 
     private Terrain getTerrain(IMapTileInformation tile) {
-        if (fogOfWarEnabled && fogTerrain != null && !tile.isExplored(playerId)) {
+        if (fogOfWarEnabled && fogTerrain != null
+                && !tile.isExplored(playerId) && !tile.isScriptedVisible(playerId)) {
             return fogTerrain;
         }
         return kwdFile.getTerrain(tile.getTerrainId());
@@ -238,7 +239,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         Terrain actualTerrain = kwdFile.getTerrain(tile.getTerrainId());
         boolean neverDim = actualTerrain.getFlags().contains(Terrain.TerrainFlag.ALWAYS_EXPLORED)
                 || actualTerrain.getFlags().contains(Terrain.TerrainFlag.REVEAL_THROUGH_FOG_OF_WAR);
-        boolean show = tile.isExplored(playerId) && !tile.isPerceived(playerId) && !neverDim;
+        boolean show = tile.isExplored(playerId) && !tile.isPerceived(playerId)
+                && !tile.isScriptedVisible(playerId) && !neverDim;
         Geometry fog = perceptionFogTiles.get(point);
         if (show && fog == null) {
             // A paper-thin lid tints remembered terrain from the top-down camera
