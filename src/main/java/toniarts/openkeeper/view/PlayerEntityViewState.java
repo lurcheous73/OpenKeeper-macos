@@ -57,6 +57,7 @@ import toniarts.openkeeper.view.loader.ILoader;
 import toniarts.openkeeper.view.loader.ObjectLoader;
 import toniarts.openkeeper.view.loader.TrapLoader;
 import toniarts.openkeeper.view.text.TextParser;
+import toniarts.openkeeper.utils.WorldUtils;
 
 /**
  * A state that handles the showing of entities
@@ -156,6 +157,35 @@ public class PlayerEntityViewState extends AbstractAppState {
         creatureModelContainer.update();
         doorModelContainer.update();
         trapModelContainer.update();
+        updateFogOfWarVisibility();
+    }
+
+    private void updateFogOfWarVisibility() {
+        if (mapData == null) {
+            return;
+        }
+
+        for (Map.Entry<EntityId, IEntityViewControl> entry : entityViewControls.entrySet()) {
+            EntityId entityId = entry.getKey();
+            Spatial spatial = entry.getValue().getSpatial();
+            if (spatial == null) {
+                continue;
+            }
+
+            boolean visible = true;
+            ObjectViewState objectViewState = entityData.getComponent(entityId, ObjectViewState.class);
+            if (objectViewState != null) {
+                visible = objectViewState.visible;
+            }
+
+            Position position = entityData.getComponent(entityId, Position.class);
+            if (visible && position != null) {
+                IMapTileInformation tile = mapData.getTile(WorldUtils.vectorToPoint(position.position));
+                visible = tile == null || tile.isExplored(playerId);
+            }
+
+            spatial.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+        }
     }
 
     @Override
