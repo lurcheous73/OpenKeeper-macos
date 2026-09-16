@@ -144,8 +144,12 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         for (Thing.Room room : kwdFile.getThings(Thing.Room.class)) {
             Point p = new Point(room.getPosX(), room.getPosY());
             IMapTileInformation tile = getMapData().getTile(p);
-            if (tile != null && (!fogOfWarEnabled || tile.isExplored(playerId))) {
-                handleRoom(p, kwdFile.getRoomByTerrain(tile.getTerrainId()), room);
+            if (tile != null) {
+                Room roomType = kwdFile.getRoomByTerrain(tile.getTerrainId());
+                rememberFixedRoom(p, roomType, room, new HashSet<>());
+                if (!fogOfWarEnabled || tile.isExplored(playerId)) {
+                    handleRoom(p, roomType, room);
+                }
             }
         }
 
@@ -842,6 +846,27 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         return room.getFlags().contains(Room.RoomFlag.HAS_WALLS)
                 || room.getTileConstruction() == Room.TileConstruction.HERO_GATE_FRONT_END
                 || room.getTileConstruction() == Room.TileConstruction.HERO_GATE_3_BY_1;
+    }
+
+    private void rememberFixedRoom(Point p, Room room, Thing.Room thing, Set<Point> visited) {
+        if (!visited.add(p)) {
+            return;
+        }
+        IMapTileInformation tile = getMapData().getTile(p);
+        if (tile == null) {
+            return;
+        }
+        Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
+        if (!terrain.getFlags().contains(Terrain.TerrainFlag.ROOM)
+                || !room.equals(kwdFile.getRoomByTerrain(terrain.getTerrainId()))) {
+            return;
+        }
+
+        roomThings.put(p, thing);
+        rememberFixedRoom(new Point(p.x, p.y - 1), room, thing, visited);
+        rememberFixedRoom(new Point(p.x + 1, p.y), room, thing, visited);
+        rememberFixedRoom(new Point(p.x, p.y + 1), room, thing, visited);
+        rememberFixedRoom(new Point(p.x - 1, p.y), room, thing, visited);
     }
 
     /**
