@@ -363,6 +363,12 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
                 }
 
                 Geometry geometry = (Geometry) spatial;
+                if (geometry.isGrouped()) {
+                    // Room constructors can return geometry already owned by an inner BatchNode.
+                    // jME forbids changing its material until it is unbatched, so keep that
+                    // pre-batched wall material intact and style only detached tile geometry.
+                    return;
+                }
                 Material material = geometry.getMaterial().clone();
                 geometry.setMaterial(material);
 
