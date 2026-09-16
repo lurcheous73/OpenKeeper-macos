@@ -34,6 +34,7 @@ import com.jme3.math.Ray;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
+import com.jme3.scene.Spatial;
 import com.jme3.scene.control.AbstractControl;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
@@ -401,7 +402,8 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             // TODO: Now just creature control, but all interaction objects
             object = results.getCollision(i).getGeometry().getParent().getParent();
             IEntityViewControl control = object.getControl(IEntityViewControl.class);
-            if (control != null) {
+            if (control != null && control.getSpatial() != null
+                    && control.getSpatial().getCullHint() != Spatial.CullHint.Always) {
                 setInteractiveControl(control);
                 return;
             }
