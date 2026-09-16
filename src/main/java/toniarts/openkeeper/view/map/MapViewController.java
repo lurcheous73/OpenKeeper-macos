@@ -153,7 +153,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             if (tile != null) {
                 Room roomType = kwdFile.getRoomByTerrain(tile.getTerrainId());
                 rememberFixedRoom(p, roomType, room, new HashSet<>());
-                if (!fogOfWarEnabled || tile.isExplored(playerId)) {
+                if (!fogOfWarEnabled || tile.isExplored(playerId) || tile.isScriptedVisible(playerId)) {
                     handleRoom(p, roomType, room);
                 }
             }
@@ -302,7 +302,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             }
             Terrain actualTerrain = kwdFile.getTerrain(tile.getTerrainId());
             boolean shouldShowFluid = actualTerrain.getFlags().contains(Terrain.TerrainFlag.CONSTRUCTION_TYPE_WATER)
-                    && (!fogOfWarEnabled || tile.isExplored(playerId));
+                    && (!fogOfWarEnabled || tile.isExplored(playerId) || tile.isScriptedVisible(playerId));
             if (shouldShowFluid != visibleFluidTiles.contains(point)) {
                 fluidVisibilityChanged = true;
             }
@@ -411,7 +411,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
 
         // Change the material on geometries
         Terrain terrain = getTerrain(tile);
-        boolean fogged = fogOfWarEnabled && !tile.isExplored(playerId);
+        boolean fogged = fogOfWarEnabled && !tile.isExplored(playerId) && !tile.isScriptedVisible(playerId);
         if (!fogged && !isFlashing(tile) && !tile.isSelected(playerId)
                 && !terrain.getFlags().contains(Terrain.TerrainFlag.DECAY)) {
             return;
@@ -974,7 +974,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      */
     private void findRoom(Point p, RoomInstance roomInstance, Thing.Room thing) {
         IMapTileInformation tile = getMapData().getTile(p);
-        if (tile == null || (fogOfWarEnabled && !tile.isExplored(playerId))) {
+        if (tile == null || (fogOfWarEnabled && !tile.isExplored(playerId) && !tile.isScriptedVisible(playerId))) {
             return;
         }
 
