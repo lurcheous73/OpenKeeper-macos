@@ -44,7 +44,17 @@ public final class ObjectLoader implements ILoader<ObjectViewState> {
     @Override
     public Spatial load(AssetManager assetManager, ObjectViewState object) {
         try {
-            ArtResource artResource = kwdFile.getObject(object.objectId).getMeshResource();
+            var gameObject = kwdFile.getObject(object.objectId);
+            if (gameObject == null) {
+                logger.log(Level.DEBUG, "Object definition {0} is missing; skipping visual model.", object.objectId);
+                return null;
+            }
+            ArtResource artResource = gameObject.getMeshResource();
+            if (artResource == null) {
+                logger.log(Level.DEBUG, "Object {0} ({1}) has no mesh resource; skipping visual model.",
+                        object.objectId, gameObject.getName());
+                return null;
+            }
             Node nodeObject = (Node) AssetUtils.loadModel(assetManager, artResource.getName(), artResource);
             return nodeObject;
         } catch (Exception e) {
