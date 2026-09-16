@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import toniarts.openkeeper.tools.convert.sound.BankMapFile;
 import toniarts.openkeeper.tools.convert.sound.SdtFile;
+import toniarts.openkeeper.tools.convert.sound.SdtFileEntry;
 import toniarts.openkeeper.tools.convert.sound.sfx.SfxEEEntry;
 import toniarts.openkeeper.tools.convert.sound.sfx.SfxGroupEntry;
 import toniarts.openkeeper.tools.convert.sound.sfx.SfxSoundEntry;
@@ -82,8 +83,23 @@ public final class SoundGroup {
                         .relativize(sdt.getFile()).toString();
 
                 try {
+                    SdtFileEntry[] sdtEntries = sdt.getEntries();
+                    if (soundId < 0 || soundId >= sdtEntries.length) {
+                        logger.log(Level.WARNING, "Sound id {0} is outside SDT archive {1} (entries: {2})",
+                                soundId, sdt.getFile(), sdtEntries.length);
+                        continue;
+                    }
+
+                    SdtFileEntry sdtEntry = sdtEntries[soundId];
+                    if (sdtEntry == null) {
+                        // DKII SDT archives legitimately contain zero-length BLANK slots.
+                        // They are references to no playable sound, not corrupt data.
+                        logger.log(Level.DEBUG, "Skipping blank sound slot {0} in {1}", soundId, sdt.getFile());
+                        continue;
+                    }
+
                     String soundFilename = relative.substring(0, relative.length() - 4) + File.separator
-                            + SdtFile.fixFileExtension(sdt.getEntries()[soundId]);
+                            + SdtFile.fixFileExtension(sdtEntry);
 
                     SoundFile sf = new SoundFile(this, soundId, soundFilename);
                     files.add(sf);
