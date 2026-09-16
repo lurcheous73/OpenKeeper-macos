@@ -362,7 +362,13 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
                     return;
                 }
 
-                Material material = ((Geometry) spatial).getMaterial();
+                Geometry geometry = (Geometry) spatial;
+                Material material = geometry.getMaterial().clone();
+                geometry.setMaterial(material);
+
+                // Fog/tag/flash/decay state is tile-local. KMF-loaded models can
+                // share Material instances, so always clone before changing one
+                // or a tagged fog tile can brighten neighbouring concealed tiles.
 
                 // DKII fog is faint earth rather than exposed terrain. Keep the
                 // concealed earth model for digging/tagging, but heavily darken
