@@ -345,7 +345,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      *
      * @param node
      */
-    private void setTileMaterialToGeometries(final IMapTileInformation tile, final Node node) {
+    private void setTileMaterialToGeometries(final IMapTileInformation tile, final Spatial node) {
 
         // Change the material on geometries
         Terrain terrain = getTerrain(tile);
@@ -778,8 +778,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             topTileNode = getTileNode(p, (Node) pageNode.getChild(FLOOR_INDEX));
         }
 
+        setTileMaterialToGeometries(tile, spatial);
         topTileNode.attachChild(spatial);
-        setTileMaterialToGeometries(tile, topTileNode);
         AssetUtils.translateToTile(topTileNode, p);
     }
 
@@ -791,11 +791,11 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             Spatial wall = getWallSpatial(tile, direction);
             if (wall != null) {
                 wall.rotate(0, direction.getAngle(), 0);
+                setTileMaterialToGeometries(tile, wall);
                 sideTileNode.attachChild(wall);
             }
         }
 
-        setTileMaterialToGeometries(tile, sideTileNode);
         AssetUtils.translateToTile(sideTileNode, p);
     }
 
