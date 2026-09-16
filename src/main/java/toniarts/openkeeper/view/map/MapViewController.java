@@ -26,6 +26,7 @@ import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
+import com.jme3.scene.shape.Box;
 import com.jme3.texture.Texture;
 import toniarts.openkeeper.common.EntityInstance;
 import toniarts.openkeeper.common.RoomInstance;
@@ -96,6 +97,9 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private final Map<RoomInstance, RoomConstructor> roomActuals = new HashMap<>(); // Rooms by room constructor
     private final Map<Point, EntityInstance<Terrain>> terrainBatchCoordinates = new HashMap<>(); // A quick glimpse whether terrain batch at specific coordinates is already "found"
     private final Map<String, Material> randomTextureMaterials = new HashMap<>(); // Alternative terrain materials by asset name, configured once and reused
+    private final Map<Point, Geometry> movingFogTiles = new HashMap<>();
+    private Node movingFogNode;
+    private Material movingFogMaterial;
 
     public MapViewController(AssetManager assetManager, IKwdFile kwdFile, IMapInformation mapClientService, short playerId) {
         this(assetManager, kwdFile, mapClientService, playerId, true, false);
@@ -178,6 +182,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             ((BatchNode) page.getChild(TOP_INDEX)).batch();
         }
         map.attachChild(terrain);
+        initializeMovingFog();
 
         // Create the water and lava surfaces from the currently explored terrain.
         attachFluidGeometry();
@@ -197,6 +202,56 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             return fogTerrain;
         }
         return kwdFile.getTerrain(tile.getTerrainId());
+    }
+
+    private void initializeMovingFog() {
+        if (!fogOfWarEnabled) {
+            return;
+        }
+        movingFogNode = new Node("MovingFog");
+        movingFogMaterial = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        movingFogMaterial.setColor("Color", new ColorRGBA(0.025f, 0.012f, 0.008f, 0.48f));
+        movingFogMaterial.getAdditionalRenderState().setBlendMode(com.jme3.material.RenderState.BlendMode.Alpha);
+        movingFogMaterial.getAdditionalRenderState().setDepthWrite(false);
+        map.attachChild(movingFogNode);
+        for (IMapTileInformation tile : getMapData()) {
+            updateMovingFogTile(tile.getLocation());
+        }
+    }
+
+    public void updateFogVisibility(Point... points) {
+        if (!fogOfWarEnabled || movingFogNode == null || points == null) {
+            return;
+        }
+        for (Point point : points) {
+            if (point != null) {
+                updateMovingFogTile(point);
+            }
+        }
+    }
+
+    private void updateMovingFogTile(Point point) {
+        IMapTileInformation tile = getMapData().getTile(point);
+        if (tile == null) {
+            return;
+        }
+        Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
+        boolean show = tile.isExplored(playerId) && !tile.isVisible(playerId)
+                && !terrain.getFlags().contains(Terrain.TerrainFlag.REVEAL_THROUGH_FOG_OF_WAR);
+        Geometry fog = movingFogTiles.get(point);
+        if (show && fog == null) {
+            fog = new Geometry("MovingFog-" + point.x + "-" + point.y,
+                    new Box(WorldUtils.TILE_WIDTH / 2f, WorldUtils.TOP_HEIGHT / 2f + 0.01f, WorldUtils.TILE_WIDTH / 2f));
+            fog.setMaterial(movingFogMaterial);
+            fog.setLocalTranslation(point.x * WorldUtils.TILE_WIDTH, WorldUtils.TOP_HEIGHT / 2f, point.y * WorldUtils.TILE_WIDTH);
+            fog.setQueueBucket(RenderQueue.Bucket.Transparent);
+            fog.setShadowMode(RenderQueue.ShadowMode.Off);
+            movingFogTiles.put(new Point(point.x, point.y), fog);
+            movingFogNode.attachChild(fog);
+        }
+        if (fog != null) {
+            fog.setCullHint(show ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+        }
     }
 
     /**
@@ -290,6 +345,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         if (fluidVisibilityChanged) {
             rebuildFluidGeometry();
         }
+        updateFogVisibility(points);
     }
 
     private void rebuildFluidGeometry() {
