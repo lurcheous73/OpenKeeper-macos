@@ -37,6 +37,9 @@ import toniarts.openkeeper.utils.WorldUtils;
  */
 public final class FogOfWarSystem implements IGameLogicUpdatable {
 
+    private static final System.Logger logger = System.getLogger(FogOfWarSystem.class.getName());
+    private boolean loggedInitialState;
+
     private final IKwdFile kwdFile;
     private final IMapController mapController;
     private final EntitySet creatureEntities;
@@ -87,6 +90,31 @@ public final class FogOfWarSystem implements IGameLogicUpdatable {
             revealAroundCreature(entity, nextPerceivedTiles);
         }
         updatePerception(nextPerceivedTiles);
+        if (!loggedInitialState) {
+            logInitialFogState(nextPerceivedTiles);
+            loggedInitialState = true;
+        }
+    }
+
+    private void logInitialFogState(Map<Short, Set<Point>> currentPerception) {
+        for (short keeperId : keeperIds) {
+            int explored = 0;
+            for (IMapTileController tile : mapController.getMapData()) {
+                if (tile.isExplored(keeperId)) {
+                    explored++;
+                }
+            }
+            logger.log(System.Logger.Level.INFO, "FOW player {0}: explored {1}/{2}, perceived {3}",
+                    new Object[]{keeperId, explored, mapController.getMapData().getSize(), currentPerception.get(keeperId).size()});
+        }
+        for (Entity entity : creatureEntities) {
+            Owner owner = entity.get(Owner.class);
+            CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
+            Creature creature = kwdFile.getCreature(creatureComponent.creatureId);
+            Point center = WorldUtils.vectorToPoint(entity.get(Position.class).position);
+            logger.log(System.Logger.Level.INFO, "FOW creature {0} owner/control {1}/{2} at {3}, perceptionRange={4}",
+                    new Object[]{creature.getName(), owner.ownerId, owner.controlId, center, creature.getAttributes().getPerceptionRange()});
+        }
     }
 
     private void revealOwnedOrAlwaysExplored(Entity entity) {
