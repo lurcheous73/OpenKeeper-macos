@@ -41,6 +41,7 @@ import toniarts.openkeeper.tools.convert.ConversionUtils;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 import toniarts.openkeeper.tools.convert.map.TriggerGeneric;
+import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.utils.WorldUtils;
 import toniarts.openkeeper.utils.Point;
 
@@ -55,6 +56,7 @@ public class PlayerTriggerControl extends TriggerControl {
 
     private final short playerId;
     private final PlayerService playerService;
+    private final Map<Integer, Set<Point>> temporarilyRevealedActionPoints = new HashMap<>();
 
     public PlayerTriggerControl(final IGameController gameController, final ILevelInfo levelInfo, final IGameTimer gameTimer, final IMapController mapController,
             final ICreaturesController creaturesController, final int triggerId, final short playerId,
@@ -345,29 +347,38 @@ public class PlayerTriggerControl extends TriggerControl {
             case REVEAL_ACTION_POINT: // AP part
                 ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
                 available = trigger.getUserData("available", short.class) != 0;
-
-                // Camera sweeps must respect the Keeper's real fog state. DK2
-                // scripts often pair FOLLOW_CAMERA_PATH with REVEAL_ACTION_POINT,
-                // but revealing the AP here removes FOW for the whole movie shot.
-                // Leave exploration/perception untouched while a cinematic is active.
-                if (playerService.isInTransition()) {
-                    break;
-                }
-
                 if (!available) {
+                    Set<Point> temporarilyRevealed = new HashSet<>();
                     for (Point point : ap.getPoints()) {
                         IMapTileController tile = mapController.getMapData().getTile(point);
                         if (tile != null) {
-                            // Keep terrain fog active during in-engine movies. Scripted
-                            // visibility may expose entities, but never marks terrain explored.
                             tile.setScriptedVisible(true, playerId);
+                            if (!tile.isExplored(playerId)) {
+                                tile.setExplored(true, playerId);
+                                temporarilyRevealed.add(point);
+                            }
                         }
                     }
+                    temporarilyRevealedActionPoints.put(ap.getId(), temporarilyRevealed);
                 } else {
                     for (Point point : ap.getPoints()) {
                         IMapTileController tile = mapController.getMapData().getTile(point);
                         if (tile != null) {
                             tile.setScriptedVisible(false, playerId);
+                        }
+                    }
+                    Set<Point> temporarilyRevealed = temporarilyRevealedActionPoints.remove(ap.getId());
+                    if (temporarilyRevealed != null) {
+                        for (Point point : temporarilyRevealed) {
+                            IMapTileController tile = mapController.getMapData().getTile(point);
+                            if (tile == null || tile.getOwnerId() == playerId) {
+                                continue;
+                            }
+                            Terrain terrain = mapController.getTerrain(tile);
+                            if (!tile.isPerceived(playerId)
+                                    && !terrain.getFlags().contains(Terrain.TerrainFlag.ALWAYS_EXPLORED)) {
+                                tile.setExplored(false, playerId);
+                            }
                         }
                     }
                 }

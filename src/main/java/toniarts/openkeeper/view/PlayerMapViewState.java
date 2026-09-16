@@ -22,12 +22,8 @@ import com.jme3.app.state.AppStateManager;
 import com.jme3.asset.AssetManager;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
-import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
-import com.simsilica.es.EntitySet;
 import toniarts.openkeeper.Main;
-import toniarts.openkeeper.game.component.MapTile;
-import toniarts.openkeeper.game.component.MapVisibility;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
@@ -45,9 +41,7 @@ import toniarts.openkeeper.view.map.MapViewController;
 
 import java.lang.System.Logger;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Handles the handling of game world for a player, visually
@@ -69,7 +63,6 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final EffectManagerState effectManager;
     private final FlashTileViewState flashTileControl;
     private final MapRoomContainer mapRoomContainer;
-    private final EntitySet mapVisibilityEntities;
 
     public PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, ILoadCompleteNotifier loadCompleteNotifier) {
         this.app = app;
@@ -106,7 +99,6 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
         };
 
-        mapVisibilityEntities = entityData.getEntities(MapVisibility.class, MapTile.class);
         mapInformation = new MapInformation(mapTileContainer, kwdFile, players);
 
         // Effect manager
@@ -163,7 +155,6 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         // The actual map data
         mapRoomContainer.stop();
         mapTileContainer.stop();
-        mapVisibilityEntities.release();
 
         super.cleanup();
     }
@@ -174,24 +165,6 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         // Always process rooms before the map tiles
         mapRoomContainer.update();
         mapTileContainer.update();
-
-        if (mapVisibilityEntities.applyChanges()) {
-            Set<Point> changedPoints = new HashSet<>();
-            collectVisibilityPoints(mapVisibilityEntities.getAddedEntities(), changedPoints);
-            collectVisibilityPoints(mapVisibilityEntities.getChangedEntities(), changedPoints);
-            if (!changedPoints.isEmpty()) {
-                mapLoader.updateFogVisibility(changedPoints.toArray(Point[]::new));
-            }
-        }
-    }
-
-    private static void collectVisibilityPoints(Collection<Entity> entities, Set<Point> points) {
-        for (Entity entity : entities) {
-            MapTile tile = entity.get(MapTile.class);
-            if (tile != null && tile.p != null) {
-                points.add(tile.p);
-            }
-        }
     }
 
     public AssetManager getAssetManager() {

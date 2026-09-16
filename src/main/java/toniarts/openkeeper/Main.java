@@ -730,13 +730,4 @@ public final class Main extends SimpleApplication {
         return debug;
     }
 
-    /**
-     * Whether movies and scripted camera transitions are disabled.
-     *
-     * @return true when -nomovies was supplied
-     */
-    public static boolean isNoMovies() {
-        return params != null && params.containsKey("nomovies");
-    }
-
 }

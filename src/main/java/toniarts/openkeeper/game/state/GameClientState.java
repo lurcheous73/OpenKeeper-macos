@@ -497,14 +497,6 @@ public final class GameClientState extends AbstractPauseAwareState {
         @Override
         public void onDoTransition(short pathId, Vector3f start) {
 
-            // -nomovies is also used by direct level/debug launches. Treat in-level
-            // camera sweeps as cinematics too, but still acknowledge the transition
-            // so the server-side trigger sequence can continue normally.
-            if (Main.isNoMovies()) {
-                gameClientService.transitionEnd();
-                return;
-            }
-
             // TODO: Refactor
             stateManager.getState(PlayerCameraState.class).doTransition(pathId, start, new CinematicEventListener() {
                 @Override
