@@ -1,6 +1,23 @@
 # Build a self-contained OpenKeeper Windows x64 portable package using JDK jpackage.
 $ErrorActionPreference = 'Stop'
 
+
+function Get-Sha256Hex([string]$Path) {
+    $Stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $Sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            return (($Sha256.ComputeHash($Stream) | ForEach-Object { $_.ToString('x2') }) -join '')
+        }
+        finally {
+            $Sha256.Dispose()
+        }
+    }
+    finally {
+        $Stream.Dispose()
+    }
+}
+
 $ProjectDir = if ($env:OPENKEEPER_PROJECT_DIR) { $env:OPENKEEPER_PROJECT_DIR } else { (Get-Location).Path }
 $AppName = 'OpenKeeper'
 $MainJar = if ($env:OPENKEEPER_MAIN_JAR) { $env:OPENKEEPER_MAIN_JAR } else { 'OpenKeeper.jar' }
@@ -41,6 +58,6 @@ if (-not (Test-Path $Exe)) { throw "jpackage completed without producing $Exe" }
 
 $Zip = Join-Path $OutputDir 'OpenKeeper-Windows-x86_64.zip'
 Compress-Archive -Path $AppDir -DestinationPath $Zip -CompressionLevel Optimal -Force
-$Hash = (Get-FileHash -Algorithm SHA256 $Zip).Hash.ToLowerInvariant()
+$Hash = Get-Sha256Hex $Zip
 "$Hash  OpenKeeper-Windows-x86_64.zip" | Set-Content -Encoding ascii "$Zip.sha256"
 Write-Host "Built: $Zip"
