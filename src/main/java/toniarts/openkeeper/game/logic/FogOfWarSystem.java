@@ -146,7 +146,10 @@ public final class FogOfWarSystem implements IGameLogicUpdatable {
 
         CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
         Creature creature = kwdFile.getCreature(creatureComponent.creatureId);
-        int radius = Math.max(0, (int) Math.ceil(creature.getAttributes().getPerceptionRange()));
+        // DK2 creature perception is stored in Bullfrog sub-tile units rather than
+        // whole terrain slabs. A slab is 3x3 sub-tiles, so convert to the
+        // gameplay tile radius before revealing persistent fog.
+        int radius = Math.max(0, (int) Math.ceil(creature.getAttributes().getPerceptionRange() / 3f));
         Point center = WorldUtils.vectorToPoint(entity.get(Position.class).position);
         Set<Point> perceived = nextPerceivedTiles.get(viewerId);
         int radiusSquared = radius * radius;
