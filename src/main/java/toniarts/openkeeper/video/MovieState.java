@@ -125,8 +125,15 @@ public abstract class MovieState extends AbstractAppState {
             return;
         }
 
-        int width = app.getCamera().getWidth();
-        int height = app.getCamera().getHeight();
+        // On macOS/Retina the logical camera size can be smaller than the
+        // backing framebuffer. GUI geometry is ultimately rasterised into the
+        // framebuffer, so use its real dimensions for true fullscreen movies.
+        int width = app.getContext().getFramebufferWidth();
+        int height = app.getContext().getFramebufferHeight();
+        if (width <= 0 || height <= 0) {
+            width = app.getCamera().getWidth();
+            height = app.getCamera().getHeight();
+        }
         if (width <= 0 || height <= 0) {
             return;
         }
