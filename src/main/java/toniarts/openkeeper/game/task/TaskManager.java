@@ -687,7 +687,12 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                 break;
             }
             case KILL_PLAYER: {
-                task = new KillPlayer(navigationService, mapController, levelInfo, creature.getObjectiveTargetPlayerId(), creature);
+                short targetPlayerId = creature.getObjectiveTargetPlayerId();
+                if (levelInfo.getPlayer(targetPlayerId) == null) {
+                    logger.log(Level.DEBUG, "Ignoring KILL_PLAYER objective for missing player {0}.", targetPlayerId);
+                    break;
+                }
+                task = new KillPlayer(navigationService, mapController, levelInfo, targetPlayerId, creature);
                 break;
             }
         }
