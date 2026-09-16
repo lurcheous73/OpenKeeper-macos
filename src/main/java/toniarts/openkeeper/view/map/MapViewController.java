@@ -85,6 +85,9 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private final Set<Point> flashedTiles = new HashSet<>();
     private final List<EntityInstance<Terrain>> waterBatches = new ArrayList<>(); // Lakes and rivers
     private final List<EntityInstance<Terrain>> lavaBatches = new ArrayList<>(); // Lakes and rivers, but hot
+    private final Set<Point> visibleFluidTiles = new HashSet<>();
+    private Spatial waterSpatial;
+    private Spatial lavaSpatial;
     private final Map<Point, RoomInstance> roomCoordinates = new HashMap<>(); // A quick glimpse whether room at specific coordinates is already "found"
     private final Map<RoomInstance, Spatial> roomNodes = new HashMap<>(); // Room instances by node
     private final Map<Point, Thing.Room> roomThings = new HashMap<>();
@@ -170,15 +173,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         }
         map.attachChild(terrain);
 
-        // Create the water
-        if (!waterBatches.isEmpty()) {
-            map.attachChild(Water.construct(assetManager, waterBatches));
-        }
-
-        // And the lava
-        if (!lavaBatches.isEmpty()) {
-            map.attachChild(Water.construct(assetManager, lavaBatches));
-        }
+        // Create the water and lava surfaces from the currently explored terrain.
+        attachFluidGeometry();
 
         long loadTimeMs = (System.nanoTime() - startTime) / 1_000_000L;
         logger.log(Level.INFO, "Map {0} loaded in {1} ms", new Object[]{object.getGameLevel().getName(), loadTimeMs});
@@ -231,11 +227,28 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             }
         }
 
+        boolean fluidVisibilityChanged = false;
+        for (Point point : pointsToUpdate) {
+            IMapTileInformation tile = getMapData().getTile(point);
+            if (tile == null) {
+                continue;
+            }
+            Terrain actualTerrain = kwdFile.getTerrain(tile.getTerrainId());
+            boolean shouldShowFluid = actualTerrain.getFlags().contains(Terrain.TerrainFlag.CONSTRUCTION_TYPE_WATER)
+                    && (!fogOfWarEnabled || tile.isExplored(playerId));
+            if (shouldShowFluid != visibleFluidTiles.contains(point)) {
+                fluidVisibilityChanged = true;
+            }
+        }
+
         // Reconstruct all tiles in the area
         Set<BatchNode> nodesNeedBatching = new HashSet<>();
         Node terrainNode = (Node) map.getChild(TERRAIN_NODE);
         for (Point point : pointsToUpdate) {
             IMapTileInformation tile = getMapData().getTile(point);
+            if (tile == null) {
+                continue;
+            }
 
             // Reconstruct and mark for patching
             // The tile node needs to created anew, somehow the BatchNode just doesn't get it if I remove children from subnode
@@ -266,6 +279,58 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         // Batch
         for (BatchNode batchNode : nodesNeedBatching) {
             batchNode.batch();
+        }
+
+        if (fluidVisibilityChanged) {
+            rebuildFluidGeometry();
+        }
+    }
+
+    private void rebuildFluidGeometry() {
+        if (waterSpatial != null) {
+            waterSpatial.removeFromParent();
+            waterSpatial = null;
+        }
+        if (lavaSpatial != null) {
+            lavaSpatial.removeFromParent();
+            lavaSpatial = null;
+        }
+
+        waterBatches.clear();
+        lavaBatches.clear();
+        terrainBatchCoordinates.clear();
+        visibleFluidTiles.clear();
+
+        for (IMapTileInformation tile : getMapData()) {
+            Terrain terrain = getTerrain(tile);
+            if (!terrain.getFlags().contains(Terrain.TerrainFlag.CONSTRUCTION_TYPE_WATER)) {
+                continue;
+            }
+
+            Point point = tile.getLocation();
+            visibleFluidTiles.add(point);
+            if (!terrainBatchCoordinates.containsKey(point)) {
+                EntityInstance<Terrain> entityInstance = new EntityInstance<>(terrain);
+                findTerrainBatch(point, entityInstance);
+                if (terrain.getFlags().contains(Terrain.TerrainFlag.LAVA)) {
+                    lavaBatches.add(entityInstance);
+                } else {
+                    waterBatches.add(entityInstance);
+                }
+            }
+        }
+
+        attachFluidGeometry();
+    }
+
+    private void attachFluidGeometry() {
+        if (!waterBatches.isEmpty()) {
+            waterSpatial = Water.construct(assetManager, waterBatches);
+            map.attachChild(waterSpatial);
+        }
+        if (!lavaBatches.isEmpty()) {
+            lavaSpatial = Water.construct(assetManager, lavaBatches);
+            map.attachChild(lavaSpatial);
         }
     }
 
@@ -643,6 +708,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         // For water construction type (lava & water), there are 8 pieces (0-7 suffix) in complete resource
         // And in the top resource there is the actual lava/water
         if (terrain.getFlags().contains(Terrain.TerrainFlag.CONSTRUCTION_TYPE_WATER)) {
+            visibleFluidTiles.add(p);
 
             // Store the batch instance
             if (!terrainBatchCoordinates.containsKey(p)) {
