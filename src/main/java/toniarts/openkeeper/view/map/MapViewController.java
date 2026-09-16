@@ -26,6 +26,7 @@ import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
+import com.jme3.scene.shape.Box;
 import com.jme3.texture.Texture;
 import toniarts.openkeeper.common.EntityInstance;
 import toniarts.openkeeper.common.RoomInstance;
@@ -96,6 +97,9 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private final Map<RoomInstance, RoomConstructor> roomActuals = new HashMap<>(); // Rooms by room constructor
     private final Map<Point, EntityInstance<Terrain>> terrainBatchCoordinates = new HashMap<>(); // A quick glimpse whether terrain batch at specific coordinates is already "found"
     private final Map<String, Material> randomTextureMaterials = new HashMap<>(); // Alternative terrain materials by asset name, configured once and reused
+    private final Map<Point, Geometry> perceptionFogTiles = new HashMap<>();
+    private Node perceptionFogNode;
+    private Material perceptionFogMaterial;
 
     public MapViewController(AssetManager assetManager, IKwdFile kwdFile, IMapInformation mapClientService, short playerId) {
         this(assetManager, kwdFile, mapClientService, playerId, true, false);
@@ -178,6 +182,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             ((BatchNode) page.getChild(TOP_INDEX)).batch();
         }
         map.attachChild(terrain);
+        initializePerceptionFog();
 
         // Create the water and lava surfaces from the currently explored terrain.
         attachFluidGeometry();
@@ -197,6 +202,60 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             return fogTerrain;
         }
         return kwdFile.getTerrain(tile.getTerrainId());
+    }
+
+    private void initializePerceptionFog() {
+        if (!fogOfWarEnabled) {
+            return;
+        }
+        perceptionFogNode = new Node("PerceptionFog");
+        perceptionFogMaterial = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        perceptionFogMaterial.setColor("Color", new ColorRGBA(0f, 0f, 0f, 0.32f));
+        perceptionFogMaterial.getAdditionalRenderState().setBlendMode(com.jme3.material.RenderState.BlendMode.Alpha);
+        perceptionFogMaterial.getAdditionalRenderState().setDepthWrite(false);
+        map.attachChild(perceptionFogNode);
+        for (IMapTileInformation tile : getMapData()) {
+            updatePerceptionFogTile(tile.getLocation());
+        }
+    }
+
+    public void updateFogVisibility(Point... points) {
+        if (!fogOfWarEnabled || perceptionFogNode == null || points == null) {
+            return;
+        }
+        for (Point point : points) {
+            if (point != null) {
+                updatePerceptionFogTile(point);
+            }
+        }
+    }
+
+    private void updatePerceptionFogTile(Point point) {
+        IMapTileInformation tile = getMapData().getTile(point);
+        if (tile == null) {
+            return;
+        }
+        Terrain actualTerrain = kwdFile.getTerrain(tile.getTerrainId());
+        boolean neverDim = actualTerrain.getFlags().contains(Terrain.TerrainFlag.ALWAYS_EXPLORED)
+                || actualTerrain.getFlags().contains(Terrain.TerrainFlag.REVEAL_THROUGH_FOG_OF_WAR);
+        boolean show = tile.isExplored(playerId) && !tile.isPerceived(playerId) && !neverDim;
+        Geometry fog = perceptionFogTiles.get(point);
+        if (show && fog == null) {
+            // A paper-thin lid tints remembered terrain from the top-down camera
+            // without the ugly vertical walls produced by the old full-height boxes.
+            fog = new Geometry("PerceptionFog-" + point.x + "-" + point.y,
+                    new Box(WorldUtils.TILE_WIDTH / 2f, 0.002f, WorldUtils.TILE_WIDTH / 2f));
+            fog.setMaterial(perceptionFogMaterial);
+            fog.setLocalTranslation(point.x * WorldUtils.TILE_WIDTH, WorldUtils.TOP_HEIGHT + 0.006f,
+                    point.y * WorldUtils.TILE_WIDTH);
+            fog.setQueueBucket(RenderQueue.Bucket.Transparent);
+            fog.setShadowMode(RenderQueue.ShadowMode.Off);
+            perceptionFogTiles.put(new Point(point.x, point.y), fog);
+            perceptionFogNode.attachChild(fog);
+        }
+        if (fog != null) {
+            fog.setCullHint(show ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+        }
     }
 
     /**
@@ -290,6 +349,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         if (fluidVisibilityChanged) {
             rebuildFluidGeometry();
         }
+        updateFogVisibility(points);
     }
 
     private void rebuildFluidGeometry() {
