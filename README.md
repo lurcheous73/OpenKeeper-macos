@@ -7,9 +7,9 @@ Goal is to fully implement the game (version 1.7 with 3 bonus packs) as open sou
 
 OpenKeeper is written in Java using [JMonkeyEngine](http://jmonkeyengine.org/). Currently we are using JME 3.9 + Java 25.
 
-Builds are available from the CI:
+Builds are available from the CI. This fork currently produces native packages for macOS Apple Silicon, macOS Intel, and Windows x64 from the same game code.
 
-[![Build Status](https://github.com/tonihele/OpenKeeper/actions/workflows/gradle.yml/badge.svg)](../../actions)
+[![Build Status](https://github.com/lurcheous73/OpenKeeper-macos/actions/workflows/gradle.yml/badge.svg)](../../actions)
 
 macOS (Apple Silicon + Intel)
 =============================
@@ -38,6 +38,29 @@ bash scripts/extract-gog-dk2-macos.sh /path/to/setup_dungeon_keepertm_2.exe
 ```
 
 Keep the matching GOG `.bin` payload beside the `.exe`. The helper extracts the Windows installer without Wine and prints the exact directory to select when OpenKeeper asks for the Dungeon Keeper II installation folder. Game assets are never included in OpenKeeper builds.
+
+Windows x64
+===========
+
+The same fork also builds a native self-contained Windows x64 package. The Windows build uses the same gameplay engine and therefore includes the same fog-of-war and compatibility fixes as the macOS builds.
+
+- Windows x64 / AMD64 only.
+- No separate Java installation is required; the JDK 25 runtime is bundled by `jpackage`.
+- The CI artifact is a portable `OpenKeeper-Windows-x86_64.zip`. Extract it and run `OpenKeeper.exe`.
+- Original Dungeon Keeper II 1.7 game data is still required and is never redistributed with OpenKeeper.
+
+To build the Windows portable package locally from PowerShell with JDK 25 installed:
+
+```powershell
+.\gradlew.bat clean test windowsZip
+```
+
+The output is written to `build\windows\`, including a SHA-256 checksum file.
+
+Fog of war
+==========
+
+This fork includes a Dungeon Keeper II-style fog-of-war implementation shared by macOS and Windows: unexplored terrain is concealed as taggable earth, creature perception reveals nearby terrain, explored areas retain map knowledge, scripted camera sequences retain terrain fog, and current perception drives the moving fog layer. The implementation is shared Java/JMonkeyEngine code rather than a platform-specific renderer fork.
 
 [Here is my YouTube channel where I sometimes publish videos of the progress](https://www.youtube.com/user/Kaljis83/videos).
 

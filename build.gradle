@@ -13,7 +13,9 @@ ext {
     license = file("$rootDir/license.txt")
 }
 
-def isMacOs = System.getProperty("os.name").toLowerCase().contains("mac")
+def osName = System.getProperty("os.name").toLowerCase()
+def isMacOs = osName.contains("mac")
+def isWindows = osName.contains("windows")
 
 allprojects {
     repositories {
@@ -149,6 +151,33 @@ if (isMacOs) {
     tasks.register("macDmg") {
         group = 'distribution'
         description = 'macOS-only DMG packaging task.'
+        enabled = false
+    }
+}
+
+// Build a self-contained Windows x64 portable application image and ZIP.
+// Packaging is delegated to PowerShell for the same Gradle configuration-cache
+// safety as the macOS helper.
+if (isWindows) {
+    def windowsMainJarName = tasks.named('jar').get().archiveFileName.get()
+    def windowsMainClassName = application.mainClass.get()
+    def windowsProjectDir = rootDir.absolutePath
+    def windowsPackageScript = file('scripts/build-windows-portable.ps1').absolutePath
+
+    tasks.register("windowsZip", Exec) {
+        group = 'distribution'
+        description = 'Build a self-contained OpenKeeper portable ZIP on Windows x64.'
+        dependsOn tasks.named('installDist')
+        workingDir rootDir
+        environment 'OPENKEEPER_PROJECT_DIR', windowsProjectDir
+        environment 'OPENKEEPER_MAIN_JAR', windowsMainJarName
+        environment 'OPENKEEPER_MAIN_CLASS', windowsMainClassName
+        commandLine 'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', windowsPackageScript
+    }
+} else {
+    tasks.register("windowsZip") {
+        group = 'distribution'
+        description = 'Windows-only portable ZIP packaging task.'
         enabled = false
     }
 }
