@@ -52,6 +52,8 @@ public abstract class MovieState extends AbstractAppState {
     private MovieMaterial movieMaterial;
     private Geometry movieScreen;
     private TgqPlayer player;
+    private int originalGuiWidth;
+    private int originalGuiHeight;
 
     public MovieState(String movie) throws FileNotFoundException {
         if (!Files.exists(Paths.get(movie))) {
@@ -65,6 +67,8 @@ public abstract class MovieState extends AbstractAppState {
         super.initialize(stateManager, app);
         this.app = (Main) app;
         this.inputManager = app.getInputManager();
+        originalGuiWidth = this.app.getGuiViewPort().getCamera().getWidth();
+        originalGuiHeight = this.app.getGuiViewPort().getCamera().getHeight();
 
         // Assign video skipping keys
         inputManager.addMapping(KEY_SKIP, new KeyTrigger(KeyInput.KEY_ESCAPE), new KeyTrigger(KeyInput.KEY_SPACE), new KeyTrigger(KeyInput.KEY_RETURN), new MouseButtonTrigger(MouseInput.BUTTON_LEFT), new TouchTrigger(TouchInput.ALL));
@@ -146,6 +150,14 @@ public abstract class MovieState extends AbstractAppState {
             return;
         }
 
+        // MovieScreen is attached to guiNode, so its orthographic camera must
+        // use the same live window coordinate space or the image is clipped to
+        // the stale saved resolution on macOS fullscreen/HiDPI displays.
+        var guiCamera = app.getGuiViewPort().getCamera();
+        if (guiCamera.getWidth() != width || guiCamera.getHeight() != height) {
+            guiCamera.resize(width, height, true);
+        }
+
         float movieAspect = movieMaterial.getAspectRatio();
         if (movieAspect <= 0f) {
             movieAspect = width / (float) height;
@@ -183,6 +195,11 @@ public abstract class MovieState extends AbstractAppState {
         // Detach the canvas
         if (movieScreen != null) {
             app.getGuiNode().detachChild(movieScreen);
+        }
+
+        // Restore the GUI coordinate system for the menu/HUD after the movie.
+        if (app != null && originalGuiWidth > 0 && originalGuiHeight > 0) {
+            app.getGuiViewPort().getCamera().resize(originalGuiWidth, originalGuiHeight, true);
         }
 
         // Clean our mapping
