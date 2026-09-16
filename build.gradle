@@ -13,6 +13,8 @@ ext {
     license = file("$rootDir/license.txt")
 }
 
+def isMacOs = System.getProperty("os.name").toLowerCase().contains("mac")
+
 allprojects {
     repositories {
         mavenLocal()
@@ -25,11 +27,16 @@ allprojects {
 
 application {
     applicationName = 'OpenKeeper'
-    mainClass = 'toniarts.openkeeper.Main'
-    if (System.getProperty("os.name").toLowerCase().contains("mac")) {
-        // GLFW must own the first thread on macOS. This is required for both
-        // Apple Silicon and Intel and is also baked into the jpackage bundle below.
-        applicationDefaultJvmArgs = ["-Dvisualvm.display.name=OpenKeeper", "-XstartOnFirstThread"]
+    // macOS uses an AWT-free bootstrap before entering the normal game main class.
+    mainClass = isMacOs ? 'toniarts.openkeeper.macos.MacLauncher' : 'toniarts.openkeeper.Main'
+    if (isMacOs) {
+        // GLFW must own the first thread on macOS. Headless AWT allows image
+        // conversion code to work without initialising the Swing window system.
+        applicationDefaultJvmArgs = [
+                "-Dvisualvm.display.name=OpenKeeper",
+                "-Djava.awt.headless=true",
+                "-XstartOnFirstThread"
+        ]
     }
     else {
         applicationDefaultJvmArgs = ["-Dvisualvm.display.name=OpenKeeper"]
@@ -128,7 +135,7 @@ tasks.register("macDmg", Exec) {
     dependsOn tasks.named('installDist')
 
     onlyIf {
-        System.getProperty('os.name').toLowerCase().contains('mac')
+        isMacOs
     }
 
     doFirst {
@@ -153,6 +160,7 @@ tasks.register("macDmg", Exec) {
                 '--vendor', 'OpenKeeper',
                 '--description', 'Open source Dungeon Keeper II engine',
                 '--java-options', '-XstartOnFirstThread',
+                '--java-options', '-Djava.awt.headless=true',
                 '--java-options', '-Dvisualvm.display.name=OpenKeeper'
     }
 }
