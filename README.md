@@ -11,6 +11,34 @@ Builds are available from the CI:
 
 [![Build Status](https://github.com/tonihele/OpenKeeper/actions/workflows/gradle.yml/badge.svg)](../../actions)
 
+macOS (Apple Silicon + Intel)
+=============================
+
+This fork builds OpenKeeper natively for both current Mac architectures:
+
+- Apple Silicon (`arm64`) on a native Apple Silicon GitHub runner.
+- Intel (`x86_64`) on a native Intel GitHub runner.
+- No Rosetta is required for the Apple Silicon build.
+- The macOS package is a self-contained `.dmg` made with JDK 25 `jpackage`, so players do not need to install Java separately.
+- macOS launches with `-XstartOnFirstThread`, as required by GLFW/LWJGL.
+
+To build a DMG locally on a Mac with JDK 25 installed:
+
+```bash
+./gradlew clean test macDmg
+```
+
+The output is written to `build/macos/`.
+
+Original Dungeon Keeper II data is still required. For a legally-owned GOG installer, install `innoextract` and use the helper:
+
+```bash
+brew install innoextract
+bash scripts/extract-gog-dk2-macos.sh /path/to/setup_dungeon_keepertm_2.exe
+```
+
+Keep the matching GOG `.bin` payload beside the `.exe`. The helper extracts the Windows installer without Wine and prints the exact directory to select when OpenKeeper asks for the Dungeon Keeper II installation folder. Game assets are never included in OpenKeeper builds.
+
 [Here is my YouTube channel where I sometimes publish videos of the progress](https://www.youtube.com/user/Kaljis83/videos).
 
 Contact
