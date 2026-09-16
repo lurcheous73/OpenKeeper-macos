@@ -60,6 +60,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
 
     public final static ColorRGBA COLOR_FLASH = new ColorRGBA(0.8f, 0, 0, 1);
     private final static ColorRGBA COLOR_TAG = new ColorRGBA(0.6f, 0.6f, 1, 1);
+    private final static ColorRGBA COLOR_FOG_AMBIENT = new ColorRGBA(0.045f, 0.025f, 0.018f, 1f);
+    private final static ColorRGBA COLOR_FOG_DIFFUSE = new ColorRGBA(0.14f, 0.08f, 0.05f, 1f);
     private final static int PAGE_SQUARE_SIZE = 8; // Divide the terrain to square "pages"
     private final static int FLOOR_INDEX = 0;
     private final static int WALL_INDEX = 1;
@@ -347,7 +349,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
 
         // Change the material on geometries
         Terrain terrain = getTerrain(tile);
-        if (!isFlashing(tile) && !tile.isSelected(playerId)
+        boolean fogged = fogOfWarEnabled && !tile.isExplored(playerId);
+        if (!fogged && !isFlashing(tile) && !tile.isSelected(playerId)
                 && !terrain.getFlags().contains(Terrain.TerrainFlag.DECAY)) {
             return;
         }
@@ -360,6 +363,24 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
                 }
 
                 Material material = ((Geometry) spatial).getMaterial();
+
+                // DKII fog is faint earth rather than exposed terrain. Keep the
+                // concealed earth model for digging/tagging, but heavily darken
+                // its material so the unexplored boundary is visually obvious.
+                if (fogged) {
+                    if (material.getMaterialDef().getMaterialParam("UseMaterialColors") != null) {
+                        material.setBoolean("UseMaterialColors", true);
+                    }
+                    if (material.getMaterialDef().getMaterialParam("Ambient") != null) {
+                        material.setColor("Ambient", COLOR_FOG_AMBIENT);
+                    }
+                    if (material.getMaterialDef().getMaterialParam("Diffuse") != null) {
+                        material.setColor("Diffuse", COLOR_FOG_DIFFUSE);
+                    }
+                    if (material.getMaterialDef().getMaterialParam("Color") != null) {
+                        material.setColor("Color", COLOR_FOG_DIFFUSE);
+                    }
+                }
 
                 // Decay
                 if (terrain.getFlags().contains(Terrain.TerrainFlag.DECAY)) {
