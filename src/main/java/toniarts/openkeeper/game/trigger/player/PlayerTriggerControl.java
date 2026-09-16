@@ -347,6 +347,15 @@ public class PlayerTriggerControl extends TriggerControl {
             case REVEAL_ACTION_POINT: // AP part
                 ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
                 available = trigger.getUserData("available", short.class) != 0;
+
+                // Camera sweeps must respect the Keeper's real fog state. DK2
+                // scripts often pair FOLLOW_CAMERA_PATH with REVEAL_ACTION_POINT,
+                // but revealing the AP here removes FOW for the whole movie shot.
+                // Leave exploration/perception untouched while a cinematic is active.
+                if (playerService.isInTransition()) {
+                    break;
+                }
+
                 if (!available) {
                     Set<Point> temporarilyRevealed = new HashSet<>();
                     for (Point point : ap.getPoints()) {
