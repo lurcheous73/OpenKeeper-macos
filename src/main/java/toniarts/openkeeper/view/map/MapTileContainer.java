@@ -42,6 +42,7 @@ public abstract class MapTileContainer extends EntityContainer<IMapTileInformati
 
     private static final System.Logger logger = System.getLogger(MapTileContainer.class.getName());
 
+    private final EntityData entityData;
     private final int width;
     private final int height;
     private final IMapTileInformation[][] tiles;
@@ -51,6 +52,7 @@ public abstract class MapTileContainer extends EntityContainer<IMapTileInformati
     protected MapTileContainer(EntityData entityData, IKwdFile kwdFile, Consumer<Point[]> tileUpdateCallback) {
         super(entityData, MapTile.class, Owner.class, Health.class, Gold.class, Mana.class);
 
+        this.entityData = entityData;
         this.tileUpdateCallback = tileUpdateCallback;
         width = kwdFile.getMap().getWidth();
         height = kwdFile.getMap().getHeight();
@@ -62,7 +64,7 @@ public abstract class MapTileContainer extends EntityContainer<IMapTileInformati
     @Override
     protected IMapTileInformation addObject(Entity e) {
         logger.log(Level.TRACE, "MapTileContainer.addObject({0})", e);
-        IMapTileInformation result = new MapTileInformation(e);
+        IMapTileInformation result = new MapTileInformation(e, entityData);
         Point p = result.getLocation();
         this.tiles[p.x][p.y] = result;
 
@@ -142,16 +144,19 @@ public abstract class MapTileContainer extends EntityContainer<IMapTileInformati
     private static class MapTileInformation extends AbstractMapTileInformation {
 
         private final Entity entity;
+        private final EntityData entityData;
 
-        public MapTileInformation(Entity entity) {
+        public MapTileInformation(Entity entity, EntityData entityData) {
             super(entity.getId());
 
             this.entity = entity;
+            this.entityData = entityData;
         }
 
         @Override
         protected <T extends EntityComponent> T getEntityComponent(Class<T> type) {
-            return entity.get(type);
+            T component = entity.get(type);
+            return component != null ? component : entityData.getComponent(entity.getId(), type);
         }
 
     }

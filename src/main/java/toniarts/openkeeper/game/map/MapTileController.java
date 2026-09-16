@@ -26,6 +26,7 @@ import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.MapTile;
+import toniarts.openkeeper.game.component.MapVisibility;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Tile.BridgeTerrainType;
@@ -101,22 +102,24 @@ public final class MapTileController extends AbstractMapTileInformation implemen
 
     @Override
     public void setPerceived(boolean perceived, short playerId) {
-        MapTile mapTileComponent = new MapTile(getEntityComponent(MapTile.class));
-        if (mapTileComponent.perceived == null) {
-            mapTileComponent.perceived = HashMap.newHashMap(4);
+        MapVisibility current = getEntityComponent(MapVisibility.class);
+        MapVisibility visibility = current == null ? new MapVisibility() : new MapVisibility(current);
+        if (visibility.perceived == null) {
+            visibility.perceived = HashMap.newHashMap(4);
         }
-        mapTileComponent.perceived.put(playerId, perceived);
-        entityData.setComponent(entityId, mapTileComponent);
+        visibility.perceived.put(playerId, perceived);
+        entityData.setComponent(entityId, visibility);
     }
 
     @Override
     public void setScriptedVisible(boolean visible, short playerId) {
-        MapTile mapTileComponent = new MapTile(getEntityComponent(MapTile.class));
-        if (mapTileComponent.scriptedVisible == null) {
-            mapTileComponent.scriptedVisible = HashMap.newHashMap(4);
+        MapVisibility current = getEntityComponent(MapVisibility.class);
+        MapVisibility visibility = current == null ? new MapVisibility() : new MapVisibility(current);
+        if (visibility.scriptedVisible == null) {
+            visibility.scriptedVisible = HashMap.newHashMap(4);
         }
-        mapTileComponent.scriptedVisible.put(playerId, visible);
-        entityData.setComponent(entityId, mapTileComponent);
+        visibility.scriptedVisible.put(playerId, visible);
+        entityData.setComponent(entityId, visibility);
     }
 
     @Override
