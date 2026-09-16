@@ -32,7 +32,6 @@ import de.lessvoid.nifty.elements.events.ElementShowEvent;
 import de.lessvoid.nifty.input.NiftyInputEvent;
 import de.lessvoid.nifty.loaderv2.types.ElementType;
 import de.lessvoid.nifty.screen.Screen;
-import de.lessvoid.nifty.tools.SizeValue;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.List;
@@ -263,13 +262,12 @@ public final class CustomTabGroupControl extends AbstractController implements T
                         + "#button-template");
             } else {
                 buttonTemplate = buttonElement.getElementType().copy();
-                // Keep the live template element in the child/render-order lists while
-                // real tab buttons are created. Removing it during bind races Nifty's
-                // render-order bookkeeping and produces an internalRemoveElement error.
-                buttonElement.hide();
-                buttonElement.disable();
-                buttonElement.setConstraintWidth(SizeValue.px(0));
-                buttonElement.setConstraintHeight(SizeValue.px(0));
+                buttonElement.markForRemoval(new EndNotify() {
+                    @Override
+                    public void perform() {
+                        templateRemoved = true;
+                    }
+                });
             }
         }
         if (contentPanel == null) {
