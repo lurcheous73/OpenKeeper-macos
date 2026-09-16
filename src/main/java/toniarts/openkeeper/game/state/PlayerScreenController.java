@@ -112,6 +112,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private String cinematicText;
     private EntityData entityData;
     private CreatureCardManager creatureCardManager;
+    private LiveMiniMap liveMiniMap;
     private PossessionInteractionState.Action possessionAction = PossessionInteractionState.Action.MELEE;
 
     private final TrapIconTextParser trapIconTextParser = new TrapIconTextParser();
@@ -132,6 +133,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
             if (creatureCardManager != null) {
                 creatureCardManager.update(tpf);
             }
+            if (liveMiniMap != null) {
+                liveMiniMap.update();
+            }
             lastUpdate = 0;
         }
     }
@@ -141,6 +145,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (creatureCardManager != null) {
             creatureCardManager.cleanup();
             creatureCardManager = null;
+        }
+        if (liveMiniMap != null) {
+            liveMiniMap.cleanup();
+            liveMiniMap = null;
         }
 
         // Remove the resource bundle so that we can actually put a new one here
@@ -180,6 +188,13 @@ public final class PlayerScreenController implements IPlayerScreenController {
     }
 
     @Override
+    public void miniMapZoom() {
+        playButtonSound(GlobalCategory.GUI_BUTTON_ZOOM);
+        if (liveMiniMap != null) {
+            liveMiniMap.cycleZoom();
+        }
+    }
+
     public void togglePanel() {
         // FIXME work but not properly. Map should not move with other things. Need HUD redesign
         Element element = nifty.getScreen(SCREEN_HUD_ID).findElementById("bottomPanel");
@@ -614,6 +629,11 @@ public final class PlayerScreenController implements IPlayerScreenController {
      */
     private void initHudItems(AssetManager assetManager, EntityData entityData) {
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
+
+        if (liveMiniMap == null) {
+            liveMiniMap = new LiveMiniMap(state, nifty, assetManager, entityData);
+            liveMiniMap.initialize(hud.findElementById("minimap-live"));
+        }
 
         // Stretch the background image (height-wise) on the background image panel
         try {
