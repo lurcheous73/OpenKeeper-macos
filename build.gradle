@@ -27,6 +27,8 @@ application {
     applicationName = 'OpenKeeper'
     mainClass = 'toniarts.openkeeper.Main'
     if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+        // GLFW must own the first thread on macOS. This is required for both
+        // Apple Silicon and Intel and is also baked into the jpackage bundle below.
         applicationDefaultJvmArgs = ["-Dvisualvm.display.name=OpenKeeper", "-XstartOnFirstThread"]
     }
     else {
@@ -114,6 +116,44 @@ jar {
             'Build-JDK': "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
             'Build-OS': "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}"
         )
+    }
+}
+
+// Build a self-contained macOS disk image with the architecture-native JDK runtime.
+// Run this task natively on each architecture; GitHub Actions does exactly that for
+// arm64 and x86_64. jMonkeyEngine 3.9/LWJGL3 already carries both macOS native sets.
+tasks.register("macDmg", Exec) {
+    group = 'distribution'
+    description = 'Build a self-contained OpenKeeper DMG on macOS (arm64 or x86_64).'
+    dependsOn tasks.named('installDist')
+
+    onlyIf {
+        System.getProperty('os.name').toLowerCase().contains('mac')
+    }
+
+    doFirst {
+        File jpackage = new File(System.getProperty('java.home'), 'bin/jpackage')
+        if (!jpackage.isFile()) {
+            throw new GradleException("jpackage was not found in ${System.getProperty('java.home')}. Use a full JDK 25, not a JRE.")
+        }
+
+        File inputDir = layout.buildDirectory.dir("install/${application.applicationName}/lib").get().asFile
+        File outputDir = layout.buildDirectory.dir('macos').get().asFile
+        File mainJar = tasks.named('jar').get().archiveFile.get().asFile
+
+        outputDir.mkdirs()
+
+        commandLine jpackage.absolutePath,
+                '--type', 'dmg',
+                '--name', 'OpenKeeper',
+                '--dest', outputDir.absolutePath,
+                '--input', inputDir.absolutePath,
+                '--main-jar', mainJar.name,
+                '--main-class', application.mainClass.get(),
+                '--vendor', 'OpenKeeper',
+                '--description', 'Open source Dungeon Keeper II engine',
+                '--java-options', '-XstartOnFirstThread',
+                '--java-options', '-Dvisualvm.display.name=OpenKeeper'
     }
 }
 
