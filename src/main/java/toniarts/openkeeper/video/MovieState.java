@@ -68,15 +68,17 @@ public abstract class MovieState extends AbstractAppState {
         inputManager.addMapping(KEY_SKIP, new KeyTrigger(KeyInput.KEY_ESCAPE), new KeyTrigger(KeyInput.KEY_SPACE), new KeyTrigger(KeyInput.KEY_RETURN), new MouseButtonTrigger(MouseInput.BUTTON_LEFT), new TouchTrigger(TouchInput.ALL));
         inputManager.addListener(actionListener, KEY_SKIP);
 
-        // Create the canvas
-        int width = Main.getUserSettings().getAppSettings().getWidth();
-        int height = Main.getUserSettings().getAppSettings().getHeight();
-        boolean squareScreen = ((0f + width) / height) < 1.6f;
-        movieMaterial = new MovieMaterial(app, !squareScreen);
+        // Create a unit quad and size/centre it from the live framebuffer.
+        // The old code used the saved settings resolution, which leaves movies
+        // anchored in the lower-left when macOS fullscreen/Retina uses a
+        // different framebuffer size. Geometry sizing also preserves the TGQ
+        // aspect ratio without stretching.
+        movieMaterial = new MovieMaterial(app, false);
         movieMaterial.setLetterboxColor(ColorRGBA.Black);
-        movieScreen = new Geometry("MovieScreen", new Quad(width, height));
+        movieScreen = new Geometry("MovieScreen", new Quad(1, 1));
         movieScreen.setMaterial(movieMaterial.getMaterial());
         this.app.getGuiNode().attachChild(movieScreen);
+        updateMovieScreenBounds();
 
         // Create the player
         player = new TgqPlayer(Paths.get(movie)) {
@@ -115,6 +117,39 @@ public abstract class MovieState extends AbstractAppState {
     @Override
     public void update(float tpf) {
         movieMaterial.update(tpf);
+        updateMovieScreenBounds();
+    }
+
+    private void updateMovieScreenBounds() {
+        if (movieScreen == null || movieMaterial == null || app == null) {
+            return;
+        }
+
+        int width = app.getCamera().getWidth();
+        int height = app.getCamera().getHeight();
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        float movieAspect = movieMaterial.getAspectRatio();
+        if (movieAspect <= 0f) {
+            movieAspect = width / (float) height;
+        }
+        float screenAspect = width / (float) height;
+
+        float movieWidth;
+        float movieHeight;
+        if (movieAspect > screenAspect) {
+            movieWidth = width;
+            movieHeight = width / movieAspect;
+        } else {
+            movieHeight = height;
+            movieWidth = height * movieAspect;
+        }
+
+        movieScreen.setLocalScale(movieWidth, movieHeight, 1f);
+        movieScreen.setLocalTranslation((width - movieWidth) * 0.5f,
+                (height - movieHeight) * 0.5f, 0f);
     }
 
     @Override
