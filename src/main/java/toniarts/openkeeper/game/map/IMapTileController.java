@@ -33,6 +33,10 @@ public interface IMapTileController extends IMapTileInformation {
 
     void setExplored(boolean explored, short playerId);
 
+    void setPerceived(boolean perceived, short playerId);
+
+    void setScriptedVisible(boolean visible, short playerId);
+
     void setGold(int gold);
 
     /**

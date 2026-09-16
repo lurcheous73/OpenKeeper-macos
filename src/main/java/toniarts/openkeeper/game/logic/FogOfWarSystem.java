@@ -12,7 +12,9 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntitySet;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Health;
@@ -40,6 +42,7 @@ public final class FogOfWarSystem implements IGameLogicUpdatable {
     private final EntitySet creatureEntities;
     private final EntitySet mapTileEntities;
     private final Set<Short> keeperIds = new HashSet<>();
+    private final Map<Short, Set<Point>> perceivedTiles = new HashMap<>();
 
     public FogOfWarSystem(EntityData entityData, IKwdFile kwdFile,
             IMapController mapController, Collection<Short> playerIds) {
@@ -48,6 +51,7 @@ public final class FogOfWarSystem implements IGameLogicUpdatable {
         for (short playerId : playerIds) {
             if (playerId >= Player.KEEPER1_ID) {
                 keeperIds.add(playerId);
+                perceivedTiles.put(playerId, new HashSet<>());
             }
         }
 
@@ -75,9 +79,14 @@ public final class FogOfWarSystem implements IGameLogicUpdatable {
         }
 
         creatureEntities.applyChanges();
-        for (Entity entity : creatureEntities) {
-            revealAroundCreature(entity);
+        Map<Short, Set<Point>> nextPerceivedTiles = new HashMap<>();
+        for (short keeperId : keeperIds) {
+            nextPerceivedTiles.put(keeperId, new HashSet<>());
         }
+        for (Entity entity : creatureEntities) {
+            revealAroundCreature(entity, nextPerceivedTiles);
+        }
+        updatePerception(nextPerceivedTiles);
     }
 
     private void revealOwnedOrAlwaysExplored(Entity entity) {
@@ -95,29 +104,63 @@ public final class FogOfWarSystem implements IGameLogicUpdatable {
         }
     }
 
-    private void revealAroundCreature(Entity entity) {
+    private void revealAroundCreature(Entity entity, Map<Short, Set<Point>> nextPerceivedTiles) {
+        Health health = entity.get(Health.class);
+        if (health == null || health.health <= 0) {
+            return;
+        }
+
         Owner owner = entity.get(Owner.class);
-        if (!keeperIds.contains(owner.ownerId)) {
+        short viewerId = keeperIds.contains(owner.controlId) ? owner.controlId : owner.ownerId;
+        if (!keeperIds.contains(viewerId)) {
             return;
         }
 
         CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
         Creature creature = kwdFile.getCreature(creatureComponent.creatureId);
-        int radius = (int) Math.ceil(creature.getAttributes().getPerceptionRange());
-        if (radius <= 0) {
-            return;
-        }
-
+        int radius = Math.max(0, (int) Math.ceil(creature.getAttributes().getPerceptionRange()));
         Point center = WorldUtils.vectorToPoint(entity.get(Position.class).position);
+        Set<Point> perceived = nextPerceivedTiles.get(viewerId);
         int radiusSquared = radius * radius;
         for (int x = center.x - radius; x <= center.x + radius; x++) {
             for (int y = center.y - radius; y <= center.y + radius; y++) {
                 int dx = x - center.x;
                 int dy = y - center.y;
                 if (dx * dx + dy * dy <= radiusSquared) {
-                    revealTile(new Point(x, y), owner.ownerId);
+                    Point point = new Point(x, y);
+                    if (mapController.getMapData().getTile(point) != null) {
+                        perceived.add(point);
+                        revealTile(point, viewerId);
+                    }
                 }
             }
+        }
+    }
+
+    private void updatePerception(Map<Short, Set<Point>> nextPerceivedTiles) {
+        for (short keeperId : keeperIds) {
+            Set<Point> previous = perceivedTiles.get(keeperId);
+            Set<Point> next = nextPerceivedTiles.get(keeperId);
+
+            Set<Point> noLongerVisible = new HashSet<>(previous);
+            noLongerVisible.removeAll(next);
+            for (Point point : noLongerVisible) {
+                IMapTileController tile = mapController.getMapData().getTile(point);
+                if (tile != null) {
+                    tile.setPerceived(false, keeperId);
+                }
+            }
+
+            Set<Point> newlyVisible = new HashSet<>(next);
+            newlyVisible.removeAll(previous);
+            for (Point point : newlyVisible) {
+                IMapTileController tile = mapController.getMapData().getTile(point);
+                if (tile != null) {
+                    tile.setPerceived(true, keeperId);
+                }
+            }
+
+            perceivedTiles.put(keeperId, next);
         }
     }
 

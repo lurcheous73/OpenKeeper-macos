@@ -70,6 +70,24 @@ public abstract class AbstractMapTileInformation implements IMapTileInformation 
     }
 
     @Override
+    public boolean isPerceived(short playerId) {
+        MapTile mapTileComponent = getEntityComponent(MapTile.class);
+        if (mapTileComponent.perceived != null) {
+            return mapTileComponent.perceived.getOrDefault(playerId, false);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isScriptedVisible(short playerId) {
+        MapTile mapTileComponent = getEntityComponent(MapTile.class);
+        if (mapTileComponent.scriptedVisible != null) {
+            return mapTileComponent.scriptedVisible.getOrDefault(playerId, false);
+        }
+        return false;
+    }
+
+    @Override
     public short getOwnerId() {
         return getEntityComponent(Owner.class).ownerId;
     }

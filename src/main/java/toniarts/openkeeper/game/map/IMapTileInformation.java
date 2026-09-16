@@ -76,6 +76,14 @@ public interface IMapTileInformation {
 
     boolean isExplored(short playerId);
 
+    boolean isPerceived(short playerId);
+
+    boolean isScriptedVisible(short playerId);
+
+    default boolean isVisible(short playerId) {
+        return isPerceived(playerId) || isScriptedVisible(playerId);
+    }
+
     boolean isSelected(short playerId);
 
     EntityId getRoomId();

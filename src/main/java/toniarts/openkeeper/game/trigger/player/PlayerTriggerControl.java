@@ -351,13 +351,22 @@ public class PlayerTriggerControl extends TriggerControl {
                     Set<Point> temporarilyRevealed = new HashSet<>();
                     for (Point point : ap.getPoints()) {
                         IMapTileController tile = mapController.getMapData().getTile(point);
-                        if (tile != null && !tile.isExplored(playerId)) {
-                            tile.setExplored(true, playerId);
-                            temporarilyRevealed.add(point);
+                        if (tile != null) {
+                            tile.setScriptedVisible(true, playerId);
+                            if (!tile.isExplored(playerId)) {
+                                tile.setExplored(true, playerId);
+                                temporarilyRevealed.add(point);
+                            }
                         }
                     }
                     temporarilyRevealedActionPoints.put(ap.getId(), temporarilyRevealed);
                 } else {
+                    for (Point point : ap.getPoints()) {
+                        IMapTileController tile = mapController.getMapData().getTile(point);
+                        if (tile != null) {
+                            tile.setScriptedVisible(false, playerId);
+                        }
+                    }
                     Set<Point> temporarilyRevealed = temporarilyRevealedActionPoints.remove(ap.getId());
                     if (temporarilyRevealed != null) {
                         for (Point point : temporarilyRevealed) {

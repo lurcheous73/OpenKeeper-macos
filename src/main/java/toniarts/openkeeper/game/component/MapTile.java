@@ -34,6 +34,8 @@ public final class MapTile implements EntityComponent {
     public Map<Short, Boolean> selection;
     public Map<Short, Boolean> flashing;
     public Map<Short, Boolean> explored;
+    public Map<Short, Boolean> perceived;
+    public Map<Short, Boolean> scriptedVisible;
 
     public int randomTextureIndex;
 
@@ -76,6 +78,14 @@ public final class MapTile implements EntityComponent {
         if (mapTile.explored != null && !mapTile.explored.isEmpty()) {
             this.explored = HashMap.newHashMap(4);
             this.explored.putAll(mapTile.explored);
+        }
+        if (mapTile.perceived != null && !mapTile.perceived.isEmpty()) {
+            this.perceived = HashMap.newHashMap(4);
+            this.perceived.putAll(mapTile.perceived);
+        }
+        if (mapTile.scriptedVisible != null && !mapTile.scriptedVisible.isEmpty()) {
+            this.scriptedVisible = HashMap.newHashMap(4);
+            this.scriptedVisible.putAll(mapTile.scriptedVisible);
         }
     }
 

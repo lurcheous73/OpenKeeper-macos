@@ -33,6 +33,7 @@ import java.util.Map;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.ObjectViewState;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.map.IMapDataInformation;
@@ -178,10 +179,13 @@ public class PlayerEntityViewState extends AbstractAppState {
                 visible = objectViewState.visible;
             }
 
+            Owner owner = entityData.getComponent(entityId, Owner.class);
+            boolean ownedByPlayer = owner != null
+                    && (owner.ownerId == playerId || owner.controlId == playerId);
             Position position = entityData.getComponent(entityId, Position.class);
-            if (visible && position != null) {
+            if (visible && !ownedByPlayer && position != null) {
                 IMapTileInformation tile = mapData.getTile(WorldUtils.vectorToPoint(position.position));
-                visible = tile == null || tile.isExplored(playerId);
+                visible = tile == null || tile.isVisible(playerId);
             }
 
             spatial.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
