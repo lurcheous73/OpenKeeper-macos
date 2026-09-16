@@ -18,6 +18,9 @@ package toniarts.openkeeper.game.trigger.player;
 
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameController;
@@ -27,6 +30,7 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.data.ActionPoint;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.state.session.PlayerService;
@@ -37,7 +41,9 @@ import toniarts.openkeeper.tools.convert.ConversionUtils;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 import toniarts.openkeeper.tools.convert.map.TriggerGeneric;
+import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.utils.WorldUtils;
+import toniarts.openkeeper.utils.Point;
 
 /**
  * Trigger control that is targeted for specified player
@@ -50,6 +56,7 @@ public class PlayerTriggerControl extends TriggerControl {
 
     private final short playerId;
     private final PlayerService playerService;
+    private final Map<Integer, Set<Point>> temporarilyRevealedActionPoints = new HashMap<>();
 
     public PlayerTriggerControl(final IGameController gameController, final ILevelInfo levelInfo, final IGameTimer gameTimer, final IMapController mapController,
             final ICreaturesController creaturesController, final int triggerId, final short playerId,
@@ -338,12 +345,33 @@ public class PlayerTriggerControl extends TriggerControl {
                 break;
 
             case REVEAL_ACTION_POINT: // AP part
-//                if (playerId == playerState.getPlayerId()) {
-//                    // TODO this
-//                    // remove fog of war from tiles in action point
-//                    // or
-//                    // add fog of war to tiles in action point
-//                }
+                ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
+                available = trigger.getUserData("available", short.class) != 0;
+                if (!available) {
+                    Set<Point> temporarilyRevealed = new HashSet<>();
+                    for (Point point : ap.getPoints()) {
+                        IMapTileController tile = mapController.getMapData().getTile(point);
+                        if (tile != null && !tile.isExplored(playerId)) {
+                            tile.setExplored(true, playerId);
+                            temporarilyRevealed.add(point);
+                        }
+                    }
+                    temporarilyRevealedActionPoints.put(ap.getId(), temporarilyRevealed);
+                } else {
+                    Set<Point> temporarilyRevealed = temporarilyRevealedActionPoints.remove(ap.getId());
+                    if (temporarilyRevealed != null) {
+                        for (Point point : temporarilyRevealed) {
+                            IMapTileController tile = mapController.getMapData().getTile(point);
+                            if (tile == null || tile.getOwnerId() == playerId) {
+                                continue;
+                            }
+                            Terrain terrain = mapController.getTerrain(tile);
+                            if (!terrain.getFlags().contains(Terrain.TerrainFlag.ALWAYS_EXPLORED)) {
+                                tile.setExplored(false, playerId);
+                            }
+                        }
+                    }
+                }
                 break;
 
             case ZOOM_TO_ACTION_POINT: // AP part
