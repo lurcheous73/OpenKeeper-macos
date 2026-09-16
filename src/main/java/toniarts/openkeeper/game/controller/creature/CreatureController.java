@@ -107,6 +107,7 @@ public final class CreatureController extends EntityController implements ICreat
 
     private static final Logger logger = System.getLogger(CreatureController.class.getName());
     private static final double ASSIGNED_TASK_NAVIGATION_RETRY_DELAY = 1.0;
+    private static final double KILL_PLAYER_NAVIGATION_RETRY_DELAY = 3.0;
 
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
@@ -471,8 +472,9 @@ public final class CreatureController extends EntityController implements ICreat
                 Point destination = WorldUtils.vectorToPoint(loc);
                 boolean navigationFailed = createNavigation(getCreatureCoordinates(), destination,
                         assignedTask.isFaceTarget() ? assignedTask.getTaskLocation() : null);
-                nextAssignedTaskNavigationRetryTime = navigationFailed
-                        ? gameTime + ASSIGNED_TASK_NAVIGATION_RETRY_DELAY : 0;
+                double retryDelay = taskComponent.taskType == TaskType.KILL_PLAYER
+                        ? KILL_PLAYER_NAVIGATION_RETRY_DELAY : ASSIGNED_TASK_NAVIGATION_RETRY_DELAY;
+                nextAssignedTaskNavigationRetryTime = navigationFailed ? gameTime + retryDelay : 0;
             }
         }
     }
@@ -481,7 +483,9 @@ public final class CreatureController extends EntityController implements ICreat
         GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
         if (path == null) {
             TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
-            Level logLevel = taskComponent != null && taskComponent.taskType == TaskType.GO_TO_LOCATION
+            Level logLevel = taskComponent != null
+                    && (taskComponent.taskType == TaskType.GO_TO_LOCATION
+                    || taskComponent.taskType == TaskType.KILL_PLAYER)
                     ? Level.DEBUG : Level.WARNING;
             logger.log(logLevel, "No path for {0} owner {1} task {2} from {3} to {4}",
                     creature.getName(), getOwnerId(), taskComponent != null ? taskComponent.taskType : null,
