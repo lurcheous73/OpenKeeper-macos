@@ -127,41 +127,29 @@ jar {
 }
 
 // Build a self-contained macOS disk image with the architecture-native JDK runtime.
-// Run this task natively on each architecture; GitHub Actions does exactly that for
-// arm64 and x86_64. jMonkeyEngine 3.9/LWJGL3 already carries both macOS native sets.
-tasks.register("macDmg", Exec) {
-    group = 'distribution'
-    description = 'Build a self-contained OpenKeeper DMG on macOS (arm64 or x86_64).'
-    dependsOn tasks.named('installDist')
+// The actual jpackage command lives in a shell helper so Gradle's configuration
+// cache never needs to serialize project/layout objects from an execution closure.
+if (isMacOs) {
+    def macMainJarName = tasks.named('jar').get().archiveFileName.get()
+    def macMainClassName = application.mainClass.get()
+    def macProjectDir = rootDir.absolutePath
+    def macDmgScript = file('scripts/build-macos-dmg.sh').absolutePath
 
-    onlyIf {
-        isMacOs
+    tasks.register("macDmg", Exec) {
+        group = 'distribution'
+        description = 'Build a self-contained OpenKeeper DMG on macOS (arm64 or x86_64).'
+        dependsOn tasks.named('installDist')
+        workingDir rootDir
+        environment 'OPENKEEPER_PROJECT_DIR', macProjectDir
+        environment 'OPENKEEPER_MAIN_JAR', macMainJarName
+        environment 'OPENKEEPER_MAIN_CLASS', macMainClassName
+        commandLine '/bin/bash', macDmgScript
     }
-
-    doFirst {
-        File jpackage = new File(System.getProperty('java.home'), 'bin/jpackage')
-        if (!jpackage.isFile()) {
-            throw new GradleException("jpackage was not found in ${System.getProperty('java.home')}. Use a full JDK 25, not a JRE.")
-        }
-
-        File inputDir = layout.buildDirectory.dir("install/${application.applicationName}/lib").get().asFile
-        File outputDir = layout.buildDirectory.dir('macos').get().asFile
-        File mainJar = tasks.named('jar').get().archiveFile.get().asFile
-
-        outputDir.mkdirs()
-
-        commandLine jpackage.absolutePath,
-                '--type', 'dmg',
-                '--name', 'OpenKeeper',
-                '--dest', outputDir.absolutePath,
-                '--input', inputDir.absolutePath,
-                '--main-jar', mainJar.name,
-                '--main-class', application.mainClass.get(),
-                '--vendor', 'OpenKeeper',
-                '--description', 'Open source Dungeon Keeper II engine',
-                '--java-options', '-XstartOnFirstThread',
-                '--java-options', '-Djava.awt.headless=true',
-                '--java-options', '-Dvisualvm.display.name=OpenKeeper'
+} else {
+    tasks.register("macDmg") {
+        group = 'distribution'
+        description = 'macOS-only DMG packaging task.'
+        enabled = false
     }
 }
 
