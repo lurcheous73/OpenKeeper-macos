@@ -9,18 +9,16 @@
 package toniarts.openkeeper.game.state;
 
 import com.jme3.asset.AssetManager;
-import com.jme3.asset.DesktopAssetManager;
-import com.jme3.asset.TextureKey;
 import com.jme3.math.Vector2f;
+import com.jme3.scene.Spatial;
+import com.jme3.texture.Texture;
 import com.jme3.texture.Texture2D;
 import com.jme3.texture.plugins.AWTLoader;
+import com.jme3.ui.Picture;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntitySet;
-import de.lessvoid.nifty.Nifty;
 import de.lessvoid.nifty.elements.Element;
-import de.lessvoid.nifty.elements.render.ImageRenderer;
-import de.lessvoid.nifty.render.NiftyImage;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Graphics2D;
@@ -55,7 +53,6 @@ final class LiveMiniMap {
     private static final java.awt.Color NEUTRAL_COLOR = new java.awt.Color(175, 175, 170, 255);
 
     private final PlayerState state;
-    private final Nifty nifty;
     private final AssetManager assetManager;
     private final EntityData entityData;
     private final IKwdFile kwdFile;
@@ -64,22 +61,21 @@ final class LiveMiniMap {
     private final EntitySet creatureEntities;
     private final BufferedImage image = new BufferedImage(TEXTURE_SIZE, TEXTURE_SIZE, BufferedImage.TYPE_4BYTE_ABGR);
     private final AWTLoader imageLoader = new AWTLoader();
-    private final String textureKey;
 
     private Texture2D texture;
+    private Picture picture;
+    private Element targetElement;
     private int zoomIndex = 1;
     private boolean creatureBlink;
 
-    LiveMiniMap(PlayerState state, Nifty nifty, AssetManager assetManager, EntityData entityData) {
+    LiveMiniMap(PlayerState state, AssetManager assetManager, EntityData entityData) {
         this.state = state;
-        this.nifty = nifty;
         this.assetManager = assetManager;
         this.entityData = entityData;
         this.kwdFile = state.getKwdFile();
         this.playerId = state.getPlayerId();
         this.mapTileEntities = entityData.getEntities(MapTile.class, Owner.class);
         this.creatureEntities = entityData.getEntities(CreatureComponent.class, Owner.class, Position.class);
-        this.textureKey = "LiveMiniMap-" + playerId + "-" + Integer.toHexString(System.identityHashCode(this));
     }
 
     void initialize(Element targetElement) {
@@ -87,15 +83,19 @@ final class LiveMiniMap {
             return;
         }
 
+        this.targetElement = targetElement;
         mapTileEntities.applyChanges();
         creatureEntities.applyChanges();
         renderMap();
 
         texture = new Texture2D(imageLoader.load(image, false));
-        ((DesktopAssetManager) assetManager).addToCache(new TextureKey(textureKey, false), texture);
-        NiftyImage niftyImage = nifty.createImage(textureKey, true);
-        targetElement.getRenderer(ImageRenderer.class).setImage(niftyImage);
-        targetElement.show();
+        texture.setMagFilter(Texture.MagFilter.Nearest);
+        texture.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
+
+        picture = new Picture("LiveMiniMap-" + playerId);
+        picture.setTexture(assetManager, texture, true);
+        updatePictureBounds();
+        state.app.getGuiNode().attachChild(picture);
     }
 
     void update() {
@@ -107,6 +107,13 @@ final class LiveMiniMap {
         creatureBlink = !creatureBlink;
         renderMap();
         texture.setImage(imageLoader.load(image, false));
+        updatePictureBounds();
+    }
+
+    void setVisible(boolean visible) {
+        if (picture != null) {
+            picture.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+        }
     }
 
     void cycleZoom() {
@@ -117,7 +124,23 @@ final class LiveMiniMap {
     void cleanup() {
         mapTileEntities.release();
         creatureEntities.release();
+        if (picture != null) {
+            picture.removeFromParent();
+            picture = null;
+        }
+        targetElement = null;
         texture = null;
+    }
+
+    private void updatePictureBounds() {
+        if (picture == null || targetElement == null) {
+            return;
+        }
+        int screenHeight = state.app.getCamera().getHeight();
+        picture.setWidth(targetElement.getWidth());
+        picture.setHeight(targetElement.getHeight());
+        picture.setPosition(targetElement.getX(),
+                screenHeight - targetElement.getY() - targetElement.getHeight());
     }
 
     private void renderMap() {

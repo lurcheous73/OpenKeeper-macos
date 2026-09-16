@@ -223,8 +223,8 @@
                         </panel>
                         <panel valign="center" backgroundImage="Textures/GUI/Map/map.png" childLayout="absolute-inside"
                                imageMode="resize:0,112,0,0,0,112,0,110,0,112,0,0" filter="true">
-                            <image id="minimap-live" x="0px" y="0px" width="100%" height="100%"
-                                   filename="Textures/GUI/Map/map.png" filter="false" visible="false" visibleToMouse="false" />
+                            <panel id="minimap-live" x="0px" y="0px" width="100%" height="100%"
+                                   visibleToMouse="false" />
                             <!-- Query pointer -->
                             <panel x="0" y="0" width="64px" height="64px" visibleToMouse="true">
                                 <interact onClick="playButtonSound(GUI_BUTTON_DEFAULT)"/>

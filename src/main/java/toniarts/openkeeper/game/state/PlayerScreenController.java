@@ -134,7 +134,12 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 creatureCardManager.update(tpf);
             }
             if (liveMiniMap != null) {
-                liveMiniMap.update();
+                boolean miniMapVisible = nifty.getCurrentScreen() != null
+                        && SCREEN_HUD_ID.equals(nifty.getCurrentScreen().getScreenId());
+                liveMiniMap.setVisible(miniMapVisible);
+                if (miniMapVisible) {
+                    liveMiniMap.update();
+                }
             }
             lastUpdate = 0;
         }
@@ -631,7 +636,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
 
         if (liveMiniMap == null) {
-            liveMiniMap = new LiveMiniMap(state, nifty, assetManager, entityData);
+            liveMiniMap = new LiveMiniMap(state, assetManager, entityData);
             liveMiniMap.initialize(hud.findElementById("minimap-live"));
         }
 
