@@ -187,7 +187,6 @@ public final class PlayerScreenController implements IPlayerScreenController {
             nifty.gotoScreen(SCREEN_HUD_ID);
     }
 
-    @Override
     public void miniMapZoom() {
         playButtonSound(GlobalCategory.GUI_BUTTON_ZOOM);
         if (liveMiniMap != null) {
@@ -195,6 +194,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
     }
 
+    @Override
     public void togglePanel() {
         // FIXME work but not properly. Map should not move with other things. Need HUD redesign
         Element element = nifty.getScreen(SCREEN_HUD_ID).findElementById("bottomPanel");
