@@ -74,6 +74,8 @@ public interface IMapTileInformation {
 
     boolean isFlashed(short playerId);
 
+    boolean isExplored(short playerId);
+
     boolean isSelected(short playerId);
 
     EntityId getRoomId();

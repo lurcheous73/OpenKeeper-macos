@@ -33,6 +33,7 @@ public final class MapTile implements EntityComponent {
     // TODO: Get rid of these, not a correct place to store this information
     public Map<Short, Boolean> selection;
     public Map<Short, Boolean> flashing;
+    public Map<Short, Boolean> explored;
 
     public int randomTextureIndex;
 
@@ -71,6 +72,10 @@ public final class MapTile implements EntityComponent {
         if (mapTile.flashing != null && !mapTile.flashing.isEmpty()) {
             this.flashing = HashMap.newHashMap(4);
             this.flashing.putAll(mapTile.flashing);
+        }
+        if (mapTile.explored != null && !mapTile.explored.isEmpty()) {
+            this.explored = HashMap.newHashMap(4);
+            this.explored.putAll(mapTile.explored);
         }
     }
 

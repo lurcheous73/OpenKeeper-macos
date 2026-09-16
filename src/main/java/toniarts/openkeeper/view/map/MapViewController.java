@@ -73,6 +73,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private static final List<WallDirection> ALL_TORCH_DIRECTIONS = List.of(WallDirection.NORTH, WallDirection.WEST,
             WallDirection.SOUTH, WallDirection.EAST);
     private final boolean torchesEnabled;
+    private final boolean fogOfWarEnabled;
+    private final Terrain fogTerrain;
     private List<Node> pages;
     private final IKwdFile kwdFile;
     private Node map;
@@ -91,16 +93,35 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private final Map<String, Material> randomTextureMaterials = new HashMap<>(); // Alternative terrain materials by asset name, configured once and reused
 
     public MapViewController(AssetManager assetManager, IKwdFile kwdFile, IMapInformation mapClientService, short playerId) {
-        this(assetManager, kwdFile, mapClientService, playerId, true);
+        this(assetManager, kwdFile, mapClientService, playerId, true, false);
     }
 
     protected MapViewController(AssetManager assetManager, IKwdFile kwdFile, IMapInformation mapClientService,
             short playerId, boolean torchesEnabled) {
+        this(assetManager, kwdFile, mapClientService, playerId, torchesEnabled, false);
+    }
+
+    protected MapViewController(AssetManager assetManager, IKwdFile kwdFile, IMapInformation mapClientService,
+            short playerId, boolean torchesEnabled, boolean fogOfWarEnabled) {
         this.kwdFile = kwdFile;
         this.assetManager = assetManager;
         this.mapClientService = mapClientService;
         this.playerId = playerId;
         this.torchesEnabled = torchesEnabled;
+        this.fogOfWarEnabled = fogOfWarEnabled;
+        this.fogTerrain = fogOfWarEnabled ? findFogTerrain(kwdFile) : null;
+    }
+
+    private static Terrain findFogTerrain(IKwdFile kwdFile) {
+        return kwdFile.getTerrainList().stream()
+                .filter(terrain -> terrain.getFlags().contains(Terrain.TerrainFlag.SOLID))
+                .filter(terrain -> terrain.getFlags().contains(Terrain.TerrainFlag.TAGGABLE))
+                .filter(terrain -> !terrain.getFlags().contains(Terrain.TerrainFlag.IMPENETRABLE))
+                .filter(terrain -> !terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE))
+                .filter(terrain -> !terrain.getFlags().contains(Terrain.TerrainFlag.ROOM))
+                .filter(terrain -> terrain.getGoldValue() == 0)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No ordinary diggable terrain available for fog of war"));
     }
 
     @Override
@@ -119,7 +140,10 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         // We might not need the room list on the client ever, we can draw them without
         for (Thing.Room room : kwdFile.getThings(Thing.Room.class)) {
             Point p = new Point(room.getPosX(), room.getPosY());
-            handleRoom(p, kwdFile.getRoomByTerrain(getMapData().getTile(p).getTerrainId()), room);
+            IMapTileInformation tile = getMapData().getTile(p);
+            if (tile != null && (!fogOfWarEnabled || tile.isExplored(playerId))) {
+                handleRoom(p, kwdFile.getRoomByTerrain(tile.getTerrainId()), room);
+            }
         }
 
         // Go through the map
@@ -167,6 +191,9 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     }
 
     private Terrain getTerrain(IMapTileInformation tile) {
+        if (fogOfWarEnabled && fogTerrain != null && !tile.isExplored(playerId)) {
+            return fogTerrain;
+        }
         return kwdFile.getTerrain(tile.getTerrainId());
     }
 
@@ -761,6 +788,9 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      */
     private void findRoom(Point p, RoomInstance roomInstance, Thing.Room thing) {
         IMapTileInformation tile = getMapData().getTile(p);
+        if (tile == null || (fogOfWarEnabled && !tile.isExplored(playerId))) {
+            return;
+        }
 
         // Get the terrain
         Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());

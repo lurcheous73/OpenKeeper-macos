@@ -326,11 +326,15 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             p = selectionHandler.getPointedTileIndex();
             IMapTileInformation tile = mapInformation.getMapData().getTile(p);
             if (tile != null) {
-                Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
-                if (terrain.getFlags().contains(Terrain.TerrainFlag.ROOM)) {
-                    tooltip.setText(getRoomTooltip(tile, terrain));
+                if (!tile.isExplored(player.getPlayerId())) {
+                    tooltip.setText("Fog of war");
                 } else {
-                    tooltip.setText(textParser.getMapTileTextParser().parseText(Utils.getMainTextResourceBundle().getString(Integer.toString(terrain.getTooltipStringId())), tile));
+                    Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
+                    if (terrain.getFlags().contains(Terrain.TerrainFlag.ROOM)) {
+                        tooltip.setText(getRoomTooltip(tile, terrain));
+                    } else {
+                        tooltip.setText(textParser.getMapTileTextParser().parseText(Utils.getMainTextResourceBundle().getString(Integer.toString(terrain.getTooltipStringId())), tile));
+                    }
                 }
             } else {
                 tooltip.setText("");
@@ -427,9 +431,11 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             return false;
         }
         Point p = selectionHandler.getPointedTileIndex();
+        IMapTileInformation tile = gameClientState.getMapClientService().getMapData().getTile(p);
+        boolean concealed = tile != null && !tile.isExplored(player.getPlayerId());
         return (interactionState.getType() == Type.ROOM
                 || interactionState.getType() == Type.NONE)
-                && isOnMap && gameClientState.getMapClientService().isTaggable(p);
+                && isOnMap && (concealed || gameClientState.getMapClientService().isTaggable(p));
     }
 
     private boolean isOnMap() {

@@ -105,7 +105,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         effectManager = new EffectManagerState(kwdFile, assetManager);
 
         // Create the actual map
-        mapLoader = new MapViewController(assetManager, kwdFile, mapInformation, playerId) {
+        mapLoader = new MapViewController(assetManager, kwdFile, mapInformation, playerId, true, true) {
 
             @Override
             protected void updateProgress(float progress) {

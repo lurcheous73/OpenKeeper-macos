@@ -90,6 +90,16 @@ public final class MapTileController extends AbstractMapTileInformation implemen
     }
 
     @Override
+    public void setExplored(boolean explored, short playerId) {
+        MapTile mapTileComponent = new MapTile(getEntityComponent(MapTile.class));
+        if (mapTileComponent.explored == null) {
+            mapTileComponent.explored = HashMap.newHashMap(4);
+        }
+        mapTileComponent.explored.put(playerId, explored);
+        entityData.setComponent(entityId, mapTileComponent);
+    }
+
+    @Override
     public void setOwnerId(short ownerId) {
         entityData.setComponent(entityId, new Owner(ownerId, ownerId));
     }
