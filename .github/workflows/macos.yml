@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
@@ -40,14 +40,44 @@ jobs:
       - name: Test and build native DMG
         run: ./gradlew --no-daemon clean test macDmg --stacktrace
 
-      - name: Name architecture-specific DMG
+      - name: Verify and name architecture-specific DMG
         shell: bash
         run: |
           set -euo pipefail
-          dmg="$(find build/macos -maxdepth 1 -name '*.dmg' -print -quit)"
-          test -n "$dmg"
-          cp "$dmg" "build/OpenKeeper-macOS-${{ matrix.arch }}.dmg"
-          shasum -a 256 "build/OpenKeeper-macOS-${{ matrix.arch }}.dmg" > "build/OpenKeeper-macOS-${{ matrix.arch }}.dmg.sha256"
+          source_dmg="$(find build/macos -maxdepth 1 -name '*.dmg' -print -quit)"
+          test -n "$source_dmg"
+
+          output_dmg="build/OpenKeeper-macOS-${{ matrix.arch }}.dmg"
+          checksum="build/OpenKeeper-macOS-${{ matrix.arch }}.dmg.sha256"
+          cp "$source_dmg" "$output_dmg"
+
+          # Verify the disk image itself before mounting it.
+          hdiutil verify "$output_dmg"
+
+          # Mount the finished DMG and prove the packaged native launcher has
+          # the architecture promised by this matrix job.
+          mount_log="$(mktemp)"
+          hdiutil attach -nobrowse -readonly "$output_dmg" | tee "$mount_log"
+          volume="$(awk -F '\t' '/\/Volumes\// {print $NF; exit}' "$mount_log")"
+          test -n "$volume"
+          trap 'hdiutil detach "$volume" >/dev/null 2>&1 || true' EXIT
+
+          app="$(find "$volume" -maxdepth 2 -type d -name 'OpenKeeper.app' -print -quit)"
+          test -n "$app"
+          executable="$app/Contents/MacOS/OpenKeeper"
+          test -x "$executable"
+          file "$executable"
+          file "$executable" | grep -q '${{ matrix.arch }}'
+
+          hdiutil detach "$volume"
+          trap - EXIT
+
+          # Store a portable checksum containing only the basename, then verify it.
+          (
+            cd build
+            shasum -a 256 "OpenKeeper-macOS-${{ matrix.arch }}.dmg" > "OpenKeeper-macOS-${{ matrix.arch }}.dmg.sha256"
+            shasum -a 256 -c "OpenKeeper-macOS-${{ matrix.arch }}.dmg.sha256"
+          )
 
       - name: Upload native macOS package
         uses: actions/upload-artifact@v4
