@@ -189,9 +189,10 @@ public final class CustomScroll extends AbstractController {
             resizeRowElement(element);
 
             Element currentRow = getCurrentRow();
-            element.markForMove(currentRow, () -> {
-                element.setIndex(elements.indexOf(element) / rows.size());
-            });
+            // ElementMoveAction appends in iteration order. Do not call setIndex()
+            // here: Nifty's render-order TreeSet comparator depends on the mutable
+            // parent child index, so changing it after insertion corrupts the set.
+            element.markForMove(currentRow);
             currentRowIndex++;
             if (rows.size() < currentRowIndex) {
                 currentRowIndex = 1;

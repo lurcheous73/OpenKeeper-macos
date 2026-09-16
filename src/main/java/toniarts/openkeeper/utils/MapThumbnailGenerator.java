@@ -279,4 +279,14 @@ public final class MapThumbnailGenerator {
     public static Color getPlayerColor(short playerId) {
         return getPlayerColors().get(playerId);
     }
+
+    /**
+     * Get one of the original Dungeon Keeper II dynamic-map palette colours.
+     *
+     * @param paletteIndex map palette index
+     * @return palette colour
+     */
+    public static Color getMapColor(int paletteIndex) {
+        return new Color(getColorModel().getRGB(paletteIndex), true);
+    }
 }

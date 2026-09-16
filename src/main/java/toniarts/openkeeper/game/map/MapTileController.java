@@ -26,6 +26,7 @@ import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.MapTile;
+import toniarts.openkeeper.game.component.MapVisibility;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Tile.BridgeTerrainType;
@@ -87,6 +88,43 @@ public final class MapTileController extends AbstractMapTileInformation implemen
         }
         mapTileComponent.flashing.put(playerId, flashed);
         entityData.setComponent(entityId, mapTileComponent);
+    }
+
+    @Override
+    public void setExplored(boolean explored, short playerId) {
+        MapTile mapTileComponent = new MapTile(getEntityComponent(MapTile.class));
+        if (mapTileComponent.explored == null) {
+            mapTileComponent.explored = HashMap.newHashMap(4);
+        }
+        mapTileComponent.explored.put(playerId, explored);
+        entityData.setComponent(entityId, mapTileComponent);
+    }
+
+    @Override
+    public void setPerceived(boolean perceived, short playerId) {
+        MapVisibility current = getEntityComponent(MapVisibility.class);
+        MapVisibility visibility = current == null ? new MapVisibility() : new MapVisibility(current);
+        if (visibility.perceived == null) {
+            visibility.perceived = HashMap.newHashMap(4);
+        }
+        visibility.perceived.put(playerId, perceived);
+        entityData.setComponent(entityId, visibility);
+    }
+
+    @Override
+    public void setScriptedVisible(boolean visible, short playerId) {
+        MapVisibility current = getEntityComponent(MapVisibility.class);
+        MapVisibility visibility = current == null ? new MapVisibility() : new MapVisibility(current);
+        if (visibility.scriptedVisible == null) {
+            visibility.scriptedVisible = HashMap.newHashMap(4);
+        }
+        visibility.scriptedVisible.put(playerId, visible);
+        entityData.setComponent(entityId, visibility);
+
+        // Scripted reveal/conceal changes the terrain representation for this player.
+        // Touch MapTile so the client rebuilds only these infrequent cinematic tiles;
+        // normal perception changes remain on MapVisibility and never rebatch terrain.
+        entityData.setComponent(entityId, new MapTile(getEntityComponent(MapTile.class)));
     }
 
     @Override

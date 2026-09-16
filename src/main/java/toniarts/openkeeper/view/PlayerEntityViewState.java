@@ -26,6 +26,7 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityContainer;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.EntitySet;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.HashMap;
@@ -33,6 +34,8 @@ import java.util.Map;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.ObjectViewState;
+import toniarts.openkeeper.game.component.MapVisibility;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.map.IMapDataInformation;
@@ -57,6 +60,7 @@ import toniarts.openkeeper.view.loader.ILoader;
 import toniarts.openkeeper.view.loader.ObjectLoader;
 import toniarts.openkeeper.view.loader.TrapLoader;
 import toniarts.openkeeper.view.text.TextParser;
+import toniarts.openkeeper.utils.WorldUtils;
 
 /**
  * A state that handles the showing of entities
@@ -90,6 +94,7 @@ public class PlayerEntityViewState extends AbstractAppState {
     private final ILoader<CreatureViewState> creatureLoader;
     private final ILoader<DoorViewState> doorLoader;
     private final ILoader<TrapViewState> trapLoader;
+    private final EntitySet mapVisibilityEntities;
 
     private final Map<EntityId, IUnitFlowerControl> flowerControls = new HashMap<>();
     private final Map<EntityId, IEntityViewControl> entityViewControls = new HashMap<>();
@@ -114,6 +119,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         creatureLoader = new CreatureLoader(kwdFile);
         doorLoader = new DoorLoader(kwdFile);
         trapLoader = new TrapLoader(kwdFile);
+        mapVisibilityEntities = entityData.getEntities(MapVisibility.class);
 
         // Create the scene graph
         root = new Node("Things");
@@ -156,6 +162,39 @@ public class PlayerEntityViewState extends AbstractAppState {
         creatureModelContainer.update();
         doorModelContainer.update();
         trapModelContainer.update();
+        mapVisibilityEntities.applyChanges();
+        updateFogOfWarVisibility();
+    }
+
+    private void updateFogOfWarVisibility() {
+        if (mapData == null) {
+            return;
+        }
+
+        for (Map.Entry<EntityId, IEntityViewControl> entry : entityViewControls.entrySet()) {
+            EntityId entityId = entry.getKey();
+            Spatial spatial = entry.getValue().getSpatial();
+            if (spatial == null) {
+                continue;
+            }
+
+            boolean visible = true;
+            ObjectViewState objectViewState = entityData.getComponent(entityId, ObjectViewState.class);
+            if (objectViewState != null) {
+                visible = objectViewState.visible;
+            }
+
+            Owner owner = entityData.getComponent(entityId, Owner.class);
+            boolean ownedByPlayer = owner != null
+                    && (owner.ownerId == playerId || owner.controlId == playerId);
+            Position position = entityData.getComponent(entityId, Position.class);
+            if (visible && !ownedByPlayer && position != null) {
+                IMapTileInformation tile = mapData.getTile(WorldUtils.vectorToPoint(position.position));
+                visible = tile == null || tile.isVisible(playerId);
+            }
+
+            spatial.setCullHint(visible ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+        }
     }
 
     @Override
@@ -164,6 +203,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         creatureModelContainer.stop();
         doorModelContainer.stop();
         trapModelContainer.stop();
+        mapVisibilityEntities.release();
 
         // Detach entities
         rootNode.detachChild(root);

@@ -267,7 +267,8 @@ public final class MapController extends Container implements IMapController {
                     continue;
                 }
                 Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
-                if (!terrain.getFlags().contains(Terrain.TerrainFlag.TAGGABLE)) {
+                if (tile.isExplored(playerId)
+                        && !terrain.getFlags().contains(Terrain.TerrainFlag.TAGGABLE)) {
                     continue;
                 }
                 tile.setSelected(select, playerId);

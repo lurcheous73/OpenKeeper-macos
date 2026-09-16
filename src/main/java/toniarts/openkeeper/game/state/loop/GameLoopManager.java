@@ -67,6 +67,7 @@ public final class GameLoopManager {
         // Game logic
         final GameLogicManager gameLogicThread = new GameLogicManager(
                 gameWorldController.getMapController(),
+                new FogOfWarSystem(entityData, level, gameWorldController.getMapController(), playerControllers.keySet()),
                 new DecaySystem(entityData),
                 new WoodenBridgeDecaySystem(entityData, gameController.getGameTimer(), gameWorldController,
                         level, gameWorldController.getMapController(),

@@ -24,6 +24,7 @@ import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.MapTile;
+import toniarts.openkeeper.game.component.MapVisibility;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.tools.convert.map.Tile.BridgeTerrainType;
 
@@ -58,6 +59,29 @@ public abstract class AbstractMapTileInformation implements IMapTileInformation 
             return mapTileComponent.flashing.getOrDefault(playerId, false);
         }
         return false;
+    }
+
+    @Override
+    public boolean isExplored(short playerId) {
+        MapTile mapTileComponent = getEntityComponent(MapTile.class);
+        if (mapTileComponent.explored != null) {
+            return mapTileComponent.explored.getOrDefault(playerId, false);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isPerceived(short playerId) {
+        MapVisibility visibility = getEntityComponent(MapVisibility.class);
+        return visibility != null && visibility.perceived != null
+                && visibility.perceived.getOrDefault(playerId, false);
+    }
+
+    @Override
+    public boolean isScriptedVisible(short playerId) {
+        MapVisibility visibility = getEntityComponent(MapVisibility.class);
+        return visibility != null && visibility.scriptedVisible != null
+                && visibility.scriptedVisible.getOrDefault(playerId, false);
     }
 
     @Override

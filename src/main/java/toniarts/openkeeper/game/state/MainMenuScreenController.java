@@ -646,7 +646,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
 
         if (hiscoreList != null) {
             for (Element oldElement : hiscoreList.getChildren()) {
-                nifty.removeElement(screen, oldElement);
+                oldElement.markForRemoval();
             }
 
             ControlBuilder hiscoreDesc = new ControlBuilder("hiscoreHead", "hiscoreRow");

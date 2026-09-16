@@ -7,9 +7,74 @@ Goal is to fully implement the game (version 1.7 with 3 bonus packs) as open sou
 
 OpenKeeper is written in Java using [JMonkeyEngine](http://jmonkeyengine.org/). Currently we are using JME 3.9 + Java 25.
 
-Builds are available from the CI:
+Builds are available from the CI. This fork currently produces native packages for macOS Apple Silicon, macOS Intel, and Windows x64 from the same game code.
 
-[![Build Status](https://github.com/tonihele/OpenKeeper/actions/workflows/gradle.yml/badge.svg)](../../actions)
+[![Build Status](https://github.com/lurcheous73/OpenKeeper-macos/actions/workflows/gradle.yml/badge.svg)](../../actions)
+
+macOS (Apple Silicon + Intel)
+=============================
+
+This fork builds OpenKeeper natively for both current Mac architectures:
+
+- Apple Silicon (`arm64`) on a native Apple Silicon GitHub runner.
+- Intel (`x86_64`) on a native Intel GitHub runner.
+- No Rosetta is required for the Apple Silicon build.
+- The macOS package is a self-contained `.dmg` made with JDK 25 `jpackage`, so players do not need to install Java separately.
+- macOS launches with `-XstartOnFirstThread`, as required by GLFW/LWJGL.
+
+To build a DMG locally on a Mac with JDK 25 installed:
+
+```bash
+./gradlew clean test macDmg
+```
+
+The output is written to `build/macos/`.
+
+Original Dungeon Keeper II data is still required. For a legally-owned GOG installer, install `innoextract` and use the helper:
+
+```bash
+brew install innoextract
+bash scripts/extract-gog-dk2-macos.sh /path/to/setup_dungeon_keepertm_2.exe
+```
+
+Keep the matching GOG `.bin` payload beside the `.exe`. The helper extracts the Windows installer without Wine and prints the exact directory to select when OpenKeeper asks for the Dungeon Keeper II installation folder. Game assets are never included in OpenKeeper builds.
+
+Windows x64
+===========
+
+The same fork also builds a native self-contained Windows x64 package. The Windows build uses the same gameplay engine and therefore includes the same fog-of-war and compatibility fixes as the macOS builds.
+
+- Windows x64 / AMD64 only.
+- No separate Java installation is required; the JDK 25 runtime is bundled by `jpackage`.
+- The CI artifact is a portable `OpenKeeper-Windows-x86_64.zip`. Extract it and run `OpenKeeper.exe`.
+- Original Dungeon Keeper II 1.7 game data is still required and is never redistributed with OpenKeeper.
+
+To build the Windows portable package locally from PowerShell with JDK 25 installed:
+
+```powershell
+.\gradlew.bat clean test windowsZip
+```
+
+The output is written to `build\windows\`, including a SHA-256 checksum file.
+
+Fog of war
+==========
+
+This fork includes a Dungeon Keeper II-style fog-of-war implementation shared by macOS and Windows: unexplored terrain is concealed as taggable earth, creature perception reveals nearby terrain, explored areas retain map knowledge, and current perception drives the moving fog layer. Scripted cinematic action-point reveals can temporarily show the intended terrain without permanently marking it explored, so campaign camera sequences do not expose the whole map or leave permanent holes in the fog. The implementation is shared Java/JMonkeyEngine code rather than a platform-specific renderer fork.
+
+Live minimap and movies
+=======================
+
+The in-game Dungeon Keeper II minimap is implemented as a live camera-centred radar using the original Bullfrog map palette. It respects fog of war, shows player territory and dig tagging, tracks creature/hero blips, and updates independently of Nifty's static texture atlas.
+
+Dungeon Keeper II TGQ movies are aspect-corrected for the original 2:1 horizontal pixel aspect (stored as 320x480 but presented as 4:3), centred, and fitted to the live fullscreen window. The macOS build also updates the movie GUI camera for fullscreen/Retina displays so cinematics no longer render as a small lower-left image.
+
+Campaign smoke validation
+=========================
+
+The native arm64 build at `4479ce73` was smoke-tested against a legally owned GOG Dungeon Keeper II 1.7 installation across all 24 campaign map files, including the branching maps `Level6a/Level6b`, `level11A/level11B/level11C`, and `Level15a/level15b`. Every map started, remained alive through the automated smoke window, initialized fog-of-war state, and produced zero runtime exceptions. A single watchdog timing warning may still occur on particularly busy maps; this is not a gameplay exception.
+
+This is automated startup/runtime smoke validation rather than a claim that every campaign objective and win/lose path has been played through to completion.
 
 [Here is my YouTube channel where I sometimes publish videos of the progress](https://www.youtube.com/user/Kaljis83/videos).
 

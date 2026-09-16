@@ -77,6 +77,7 @@ import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.navigation.steering.SteeringUtils;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.game.task.Task;
+import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag;
@@ -105,6 +106,8 @@ import java.util.function.Consumer;
 public final class CreatureController extends EntityController implements ICreatureController {
 
     private static final Logger logger = System.getLogger(CreatureController.class.getName());
+    private static final double ASSIGNED_TASK_NAVIGATION_RETRY_DELAY = 1.0;
+    private static final double KILL_PLAYER_NAVIGATION_RETRY_DELAY = 3.0;
 
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
@@ -118,6 +121,8 @@ public final class CreatureController extends EntityController implements ICreat
     private final Creature creature;
     private final StateMachine<ICreatureController, CreatureState> stateMachine;
     private float motionless = 0;
+    private double nextAssignedTaskNavigationRetryTime = 0;
+    private long assignedTaskNavigationRetryTaskId = Long.MIN_VALUE;
 
     public CreatureController(EntityId entityId, EntityData entityData, Creature creature, INavigationService navigationService,
             ITaskManager taskManager, IGameTimer gameTimer, Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
@@ -443,16 +448,33 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void navigateToAssignedTask() {
+        TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
+        if (taskComponent == null) {
+            nextAssignedTaskNavigationRetryTime = 0;
+            assignedTaskNavigationRetryTaskId = Long.MIN_VALUE;
+            return;
+        }
+
+        if (taskComponent.taskId != assignedTaskNavigationRetryTaskId) {
+            assignedTaskNavigationRetryTaskId = taskComponent.taskId;
+            nextAssignedTaskNavigationRetryTime = 0;
+        }
+
+        double gameTime = gameTimer.getGameTime();
+        if (gameTime < nextAssignedTaskNavigationRetryTime) {
+            return;
+        }
+
         Task assignedTask = getAssignedTask();
         if (assignedTask != null) {
             Vector2f loc = assignedTask.getTarget(this);
-            if (!isNear(loc)) {
-                //workNavigationRequired = false;
-
-                if (loc != null) {
-                    Point destination = WorldUtils.vectorToPoint(loc);
-                    createNavigation(getCreatureCoordinates(), destination, assignedTask.isFaceTarget() ? assignedTask.getTaskLocation() : null);
-                }
+            if (loc != null && !isNear(loc)) {
+                Point destination = WorldUtils.vectorToPoint(loc);
+                boolean navigationFailed = createNavigation(getCreatureCoordinates(), destination,
+                        assignedTask.isFaceTarget() ? assignedTask.getTaskLocation() : null);
+                double retryDelay = taskComponent.taskType == TaskType.KILL_PLAYER
+                        ? KILL_PLAYER_NAVIGATION_RETRY_DELAY : ASSIGNED_TASK_NAVIGATION_RETRY_DELAY;
+                nextAssignedTaskNavigationRetryTime = navigationFailed ? gameTime + retryDelay : 0;
             }
         }
     }
@@ -460,7 +482,14 @@ public final class CreatureController extends EntityController implements ICreat
     private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget) {
         GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
         if (path == null) {
-            logger.log(Level.WARNING, "No path from {0} to {1}", getCreatureCoordinates(), destination);
+            TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
+            Level logLevel = taskComponent != null
+                    && (taskComponent.taskType == TaskType.GO_TO_LOCATION
+                    || taskComponent.taskType == TaskType.KILL_PLAYER)
+                    ? Level.DEBUG : Level.WARNING;
+            logger.log(logLevel, "No path for {0} owner {1} task {2} from {3} to {4}",
+                    creature.getName(), getOwnerId(), taskComponent != null ? taskComponent.taskType : null,
+                    getCreatureCoordinates(), destination);
             return true;
         }
         entityData.setComponent(entityId, new Navigation(destination, faceTarget, SteeringUtils.pathToList(path)));

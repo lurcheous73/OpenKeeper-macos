@@ -37,6 +37,10 @@ import toniarts.openkeeper.video.tgq.TgqFrame;
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
 public final class MovieMaterial {
+
+    // Dungeon Keeper II TGQ frames are stored at half horizontal resolution
+    // (320x480 for movies presented by the original game as 640x480).
+    private static final float DK2_TGQ_PIXEL_ASPECT = 2.0f;
     
     private static final Logger logger = System.getLogger(MovieMaterial.class.getName());
 
@@ -72,7 +76,7 @@ public final class MovieMaterial {
             float validWidth = frame.getWidth() / bufferWidth;
             float validHeight = frame.getHeight() / bufferHeight;
 
-            aspectRatio = frame.getWidth() / (float) frame.getHeight();
+            aspectRatio = (frame.getWidth() * DK2_TGQ_PIXEL_ASPECT) / (float) frame.getHeight();
 
             synchronized (MovieMaterial.this) {
                 if (!running) {

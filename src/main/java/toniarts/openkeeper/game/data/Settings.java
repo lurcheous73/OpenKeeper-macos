@@ -280,7 +280,11 @@ public final class Settings {
 
         // Assing some app level settings
         settings.setTitle(TITLE);
-        settings.setIcons(getApplicationIcons());
+        // macOS gets its icon from the .app bundle. Cocoa does not support GLFW
+        // changing the window icon at runtime, and GLFW reports that as an error.
+        if (!System.getProperty("os.name").toLowerCase().contains("mac")) {
+            settings.setIcons(getApplicationIcons());
+        }
 
         // We don't allow this to be changed, assets were not meant to use this
         settings.setGammaCorrection(false);

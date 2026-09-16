@@ -27,6 +27,7 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.data.ActionPoint;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.state.session.PlayerService;
@@ -38,6 +39,7 @@ import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 import toniarts.openkeeper.tools.convert.map.TriggerGeneric;
 import toniarts.openkeeper.utils.WorldUtils;
+import toniarts.openkeeper.utils.Point;
 
 /**
  * Trigger control that is targeted for specified player
@@ -338,12 +340,25 @@ public class PlayerTriggerControl extends TriggerControl {
                 break;
 
             case REVEAL_ACTION_POINT: // AP part
-//                if (playerId == playerState.getPlayerId()) {
-//                    // TODO this
-//                    // remove fog of war from tiles in action point
-//                    // or
-//                    // add fog of war to tiles in action point
-//                }
+                ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
+                available = trigger.getUserData("available", short.class) != 0;
+                if (!available) {
+                    for (Point point : ap.getPoints()) {
+                        IMapTileController tile = mapController.getMapData().getTile(point);
+                        if (tile != null) {
+                            // Scripted reveals can expose entities for a camera shot,
+                            // but terrain fog remains governed by real exploration.
+                            tile.setScriptedVisible(true, playerId);
+                        }
+                    }
+                } else {
+                    for (Point point : ap.getPoints()) {
+                        IMapTileController tile = mapController.getMapData().getTile(point);
+                        if (tile != null) {
+                            tile.setScriptedVisible(false, playerId);
+                        }
+                    }
+                }
                 break;
 
             case ZOOM_TO_ACTION_POINT: // AP part

@@ -26,6 +26,7 @@ import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.*;
+import com.jme3.scene.shape.Box;
 import com.jme3.texture.Texture;
 import toniarts.openkeeper.common.EntityInstance;
 import toniarts.openkeeper.common.RoomInstance;
@@ -60,6 +61,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
 
     public final static ColorRGBA COLOR_FLASH = new ColorRGBA(0.8f, 0, 0, 1);
     private final static ColorRGBA COLOR_TAG = new ColorRGBA(0.6f, 0.6f, 1, 1);
+    private final static ColorRGBA COLOR_FOG_AMBIENT = new ColorRGBA(0.045f, 0.025f, 0.018f, 1f);
+    private final static ColorRGBA COLOR_FOG_DIFFUSE = new ColorRGBA(0.14f, 0.08f, 0.05f, 1f);
     private final static int PAGE_SQUARE_SIZE = 8; // Divide the terrain to square "pages"
     private final static int FLOOR_INDEX = 0;
     private final static int WALL_INDEX = 1;
@@ -73,6 +76,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private static final List<WallDirection> ALL_TORCH_DIRECTIONS = List.of(WallDirection.NORTH, WallDirection.WEST,
             WallDirection.SOUTH, WallDirection.EAST);
     private final boolean torchesEnabled;
+    private final boolean fogOfWarEnabled;
+    private final Terrain fogTerrain;
     private List<Node> pages;
     private final IKwdFile kwdFile;
     private Node map;
@@ -83,24 +88,49 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private final Set<Point> flashedTiles = new HashSet<>();
     private final List<EntityInstance<Terrain>> waterBatches = new ArrayList<>(); // Lakes and rivers
     private final List<EntityInstance<Terrain>> lavaBatches = new ArrayList<>(); // Lakes and rivers, but hot
+    private final Set<Point> visibleFluidTiles = new HashSet<>();
+    private Spatial waterSpatial;
+    private Spatial lavaSpatial;
     private final Map<Point, RoomInstance> roomCoordinates = new HashMap<>(); // A quick glimpse whether room at specific coordinates is already "found"
     private final Map<RoomInstance, Spatial> roomNodes = new HashMap<>(); // Room instances by node
     private final Map<Point, Thing.Room> roomThings = new HashMap<>();
     private final Map<RoomInstance, RoomConstructor> roomActuals = new HashMap<>(); // Rooms by room constructor
     private final Map<Point, EntityInstance<Terrain>> terrainBatchCoordinates = new HashMap<>(); // A quick glimpse whether terrain batch at specific coordinates is already "found"
     private final Map<String, Material> randomTextureMaterials = new HashMap<>(); // Alternative terrain materials by asset name, configured once and reused
+    private final Map<Point, Geometry> perceptionFogTiles = new HashMap<>();
+    private Node perceptionFogNode;
+    private Material perceptionFogMaterial;
 
     public MapViewController(AssetManager assetManager, IKwdFile kwdFile, IMapInformation mapClientService, short playerId) {
-        this(assetManager, kwdFile, mapClientService, playerId, true);
+        this(assetManager, kwdFile, mapClientService, playerId, true, false);
     }
 
     protected MapViewController(AssetManager assetManager, IKwdFile kwdFile, IMapInformation mapClientService,
             short playerId, boolean torchesEnabled) {
+        this(assetManager, kwdFile, mapClientService, playerId, torchesEnabled, false);
+    }
+
+    protected MapViewController(AssetManager assetManager, IKwdFile kwdFile, IMapInformation mapClientService,
+            short playerId, boolean torchesEnabled, boolean fogOfWarEnabled) {
         this.kwdFile = kwdFile;
         this.assetManager = assetManager;
         this.mapClientService = mapClientService;
         this.playerId = playerId;
         this.torchesEnabled = torchesEnabled;
+        this.fogOfWarEnabled = fogOfWarEnabled;
+        this.fogTerrain = fogOfWarEnabled ? findFogTerrain(kwdFile) : null;
+    }
+
+    private static Terrain findFogTerrain(IKwdFile kwdFile) {
+        return kwdFile.getTerrainList().stream()
+                .filter(terrain -> terrain.getFlags().contains(Terrain.TerrainFlag.SOLID))
+                .filter(terrain -> terrain.getFlags().contains(Terrain.TerrainFlag.TAGGABLE))
+                .filter(terrain -> !terrain.getFlags().contains(Terrain.TerrainFlag.IMPENETRABLE))
+                .filter(terrain -> !terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE))
+                .filter(terrain -> !terrain.getFlags().contains(Terrain.TerrainFlag.ROOM))
+                .filter(terrain -> terrain.getGoldValue() == 0)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No ordinary diggable terrain available for fog of war"));
     }
 
     @Override
@@ -119,7 +149,14 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         // We might not need the room list on the client ever, we can draw them without
         for (Thing.Room room : kwdFile.getThings(Thing.Room.class)) {
             Point p = new Point(room.getPosX(), room.getPosY());
-            handleRoom(p, kwdFile.getRoomByTerrain(getMapData().getTile(p).getTerrainId()), room);
+            IMapTileInformation tile = getMapData().getTile(p);
+            if (tile != null) {
+                Room roomType = kwdFile.getRoomByTerrain(tile.getTerrainId());
+                rememberFixedRoom(p, roomType, room, new HashSet<>());
+                if (!fogOfWarEnabled || tile.isExplored(playerId) || tile.isScriptedVisible(playerId)) {
+                    handleRoom(p, roomType, room);
+                }
+            }
         }
 
         // Go through the map
@@ -145,16 +182,10 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             ((BatchNode) page.getChild(TOP_INDEX)).batch();
         }
         map.attachChild(terrain);
+        initializePerceptionFog();
 
-        // Create the water
-        if (!waterBatches.isEmpty()) {
-            map.attachChild(Water.construct(assetManager, waterBatches));
-        }
-
-        // And the lava
-        if (!lavaBatches.isEmpty()) {
-            map.attachChild(Water.construct(assetManager, lavaBatches));
-        }
+        // Create the water and lava surfaces from the currently explored terrain.
+        attachFluidGeometry();
 
         long loadTimeMs = (System.nanoTime() - startTime) / 1_000_000L;
         logger.log(Level.INFO, "Map {0} loaded in {1} ms", new Object[]{object.getGameLevel().getName(), loadTimeMs});
@@ -167,7 +198,66 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     }
 
     private Terrain getTerrain(IMapTileInformation tile) {
+        if (fogOfWarEnabled && fogTerrain != null
+                && !tile.isExplored(playerId) && !tile.isScriptedVisible(playerId)) {
+            return fogTerrain;
+        }
         return kwdFile.getTerrain(tile.getTerrainId());
+    }
+
+    private void initializePerceptionFog() {
+        if (!fogOfWarEnabled) {
+            return;
+        }
+        perceptionFogNode = new Node("PerceptionFog");
+        perceptionFogMaterial = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        perceptionFogMaterial.setColor("Color", new ColorRGBA(0f, 0f, 0f, 0.32f));
+        perceptionFogMaterial.getAdditionalRenderState().setBlendMode(com.jme3.material.RenderState.BlendMode.Alpha);
+        perceptionFogMaterial.getAdditionalRenderState().setDepthWrite(false);
+        map.attachChild(perceptionFogNode);
+        for (IMapTileInformation tile : getMapData()) {
+            updatePerceptionFogTile(tile.getLocation());
+        }
+    }
+
+    public void updateFogVisibility(Point... points) {
+        if (!fogOfWarEnabled || perceptionFogNode == null || points == null) {
+            return;
+        }
+        for (Point point : points) {
+            if (point != null) {
+                updatePerceptionFogTile(point);
+            }
+        }
+    }
+
+    private void updatePerceptionFogTile(Point point) {
+        IMapTileInformation tile = getMapData().getTile(point);
+        if (tile == null) {
+            return;
+        }
+        Terrain actualTerrain = kwdFile.getTerrain(tile.getTerrainId());
+        boolean neverDim = actualTerrain.getFlags().contains(Terrain.TerrainFlag.ALWAYS_EXPLORED)
+                || actualTerrain.getFlags().contains(Terrain.TerrainFlag.REVEAL_THROUGH_FOG_OF_WAR);
+        boolean show = tile.isExplored(playerId) && !tile.isPerceived(playerId)
+                && !tile.isScriptedVisible(playerId) && !neverDim;
+        Geometry fog = perceptionFogTiles.get(point);
+        if (show && fog == null) {
+            // A paper-thin lid tints remembered terrain from the top-down camera
+            // without the ugly vertical walls produced by the old full-height boxes.
+            fog = new Geometry("PerceptionFog-" + point.x + "-" + point.y,
+                    new Box(WorldUtils.TILE_WIDTH / 2f, 0.002f, WorldUtils.TILE_WIDTH / 2f));
+            fog.setMaterial(perceptionFogMaterial);
+            fog.setLocalTranslation(point.x * WorldUtils.TILE_WIDTH, WorldUtils.TOP_HEIGHT + 0.006f,
+                    point.y * WorldUtils.TILE_WIDTH);
+            fog.setQueueBucket(RenderQueue.Bucket.Transparent);
+            fog.setShadowMode(RenderQueue.ShadowMode.Off);
+            perceptionFogTiles.put(new Point(point.x, point.y), fog);
+            perceptionFogNode.attachChild(fog);
+        }
+        if (fog != null) {
+            fog.setCullHint(show ? Spatial.CullHint.Inherit : Spatial.CullHint.Always);
+        }
     }
 
     /**
@@ -204,11 +294,28 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             }
         }
 
+        boolean fluidVisibilityChanged = false;
+        for (Point point : pointsToUpdate) {
+            IMapTileInformation tile = getMapData().getTile(point);
+            if (tile == null) {
+                continue;
+            }
+            Terrain actualTerrain = kwdFile.getTerrain(tile.getTerrainId());
+            boolean shouldShowFluid = actualTerrain.getFlags().contains(Terrain.TerrainFlag.CONSTRUCTION_TYPE_WATER)
+                    && (!fogOfWarEnabled || tile.isExplored(playerId) || tile.isScriptedVisible(playerId));
+            if (shouldShowFluid != visibleFluidTiles.contains(point)) {
+                fluidVisibilityChanged = true;
+            }
+        }
+
         // Reconstruct all tiles in the area
         Set<BatchNode> nodesNeedBatching = new HashSet<>();
         Node terrainNode = (Node) map.getChild(TERRAIN_NODE);
         for (Point point : pointsToUpdate) {
             IMapTileInformation tile = getMapData().getTile(point);
+            if (tile == null) {
+                continue;
+            }
 
             // Reconstruct and mark for patching
             // The tile node needs to created anew, somehow the BatchNode just doesn't get it if I remove children from subnode
@@ -240,6 +347,59 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         for (BatchNode batchNode : nodesNeedBatching) {
             batchNode.batch();
         }
+
+        if (fluidVisibilityChanged) {
+            rebuildFluidGeometry();
+        }
+        updateFogVisibility(points);
+    }
+
+    private void rebuildFluidGeometry() {
+        if (waterSpatial != null) {
+            waterSpatial.removeFromParent();
+            waterSpatial = null;
+        }
+        if (lavaSpatial != null) {
+            lavaSpatial.removeFromParent();
+            lavaSpatial = null;
+        }
+
+        waterBatches.clear();
+        lavaBatches.clear();
+        terrainBatchCoordinates.clear();
+        visibleFluidTiles.clear();
+
+        for (IMapTileInformation tile : getMapData()) {
+            Terrain terrain = getTerrain(tile);
+            if (!terrain.getFlags().contains(Terrain.TerrainFlag.CONSTRUCTION_TYPE_WATER)) {
+                continue;
+            }
+
+            Point point = tile.getLocation();
+            visibleFluidTiles.add(point);
+            if (!terrainBatchCoordinates.containsKey(point)) {
+                EntityInstance<Terrain> entityInstance = new EntityInstance<>(terrain);
+                findTerrainBatch(point, entityInstance);
+                if (terrain.getFlags().contains(Terrain.TerrainFlag.LAVA)) {
+                    lavaBatches.add(entityInstance);
+                } else {
+                    waterBatches.add(entityInstance);
+                }
+            }
+        }
+
+        attachFluidGeometry();
+    }
+
+    private void attachFluidGeometry() {
+        if (!waterBatches.isEmpty()) {
+            waterSpatial = Water.construct(assetManager, waterBatches);
+            map.attachChild(waterSpatial);
+        }
+        if (!lavaBatches.isEmpty()) {
+            lavaSpatial = Water.construct(assetManager, lavaBatches);
+            map.attachChild(lavaSpatial);
+        }
     }
 
     /**
@@ -247,11 +407,12 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      *
      * @param node
      */
-    private void setTileMaterialToGeometries(final IMapTileInformation tile, final Node node) {
+    private void setTileMaterialToGeometries(final IMapTileInformation tile, final Spatial node) {
 
         // Change the material on geometries
         Terrain terrain = getTerrain(tile);
-        if (!isFlashing(tile) && !tile.isSelected(playerId)
+        boolean fogged = fogOfWarEnabled && !tile.isExplored(playerId) && !tile.isScriptedVisible(playerId);
+        if (!fogged && !isFlashing(tile) && !tile.isSelected(playerId)
                 && !terrain.getFlags().contains(Terrain.TerrainFlag.DECAY)) {
             return;
         }
@@ -263,7 +424,37 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
                     return;
                 }
 
-                Material material = ((Geometry) spatial).getMaterial();
+                Geometry geometry = (Geometry) spatial;
+                if (geometry.isGrouped()) {
+                    // Room constructors can return geometry already owned by an inner BatchNode.
+                    // jME forbids changing its material until it is unbatched, so keep that
+                    // pre-batched wall material intact and style only detached tile geometry.
+                    return;
+                }
+                Material material = geometry.getMaterial().clone();
+                geometry.setMaterial(material);
+
+                // Fog/tag/flash/decay state is tile-local. KMF-loaded models can
+                // share Material instances, so always clone before changing one
+                // or a tagged fog tile can brighten neighbouring concealed tiles.
+
+                // DKII fog is faint earth rather than exposed terrain. Keep the
+                // concealed earth model for digging/tagging, but heavily darken
+                // its material so the unexplored boundary is visually obvious.
+                if (fogged) {
+                    if (material.getMaterialDef().getMaterialParam("UseMaterialColors") != null) {
+                        material.setBoolean("UseMaterialColors", true);
+                    }
+                    if (material.getMaterialDef().getMaterialParam("Ambient") != null) {
+                        material.setColor("Ambient", COLOR_FOG_AMBIENT);
+                    }
+                    if (material.getMaterialDef().getMaterialParam("Diffuse") != null) {
+                        material.setColor("Diffuse", COLOR_FOG_DIFFUSE);
+                    }
+                    if (material.getMaterialDef().getMaterialParam("Color") != null) {
+                        material.setColor("Color", COLOR_FOG_DIFFUSE);
+                    }
+                }
 
                 // Decay
                 if (terrain.getFlags().contains(Terrain.TerrainFlag.DECAY)) {
@@ -616,6 +807,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         // For water construction type (lava & water), there are 8 pieces (0-7 suffix) in complete resource
         // And in the top resource there is the actual lava/water
         if (terrain.getFlags().contains(Terrain.TerrainFlag.CONSTRUCTION_TYPE_WATER)) {
+            visibleFluidTiles.add(p);
 
             // Store the batch instance
             if (!terrainBatchCoordinates.containsKey(p)) {
@@ -654,8 +846,8 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             topTileNode = getTileNode(p, (Node) pageNode.getChild(FLOOR_INDEX));
         }
 
+        setTileMaterialToGeometries(tile, spatial);
         topTileNode.attachChild(spatial);
-        setTileMaterialToGeometries(tile, topTileNode);
         AssetUtils.translateToTile(topTileNode, p);
     }
 
@@ -667,11 +859,11 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             Spatial wall = getWallSpatial(tile, direction);
             if (wall != null) {
                 wall.rotate(0, direction.getAngle(), 0);
+                setTileMaterialToGeometries(tile, wall);
                 sideTileNode.attachChild(wall);
             }
         }
 
-        setTileMaterialToGeometries(tile, sideTileNode);
         AssetUtils.translateToTile(sideTileNode, p);
     }
 
@@ -751,6 +943,27 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
                 || room.getTileConstruction() == Room.TileConstruction.HERO_GATE_3_BY_1;
     }
 
+    private void rememberFixedRoom(Point p, Room room, Thing.Room thing, Set<Point> visited) {
+        if (!visited.add(p)) {
+            return;
+        }
+        IMapTileInformation tile = getMapData().getTile(p);
+        if (tile == null) {
+            return;
+        }
+        Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
+        if (!terrain.getFlags().contains(Terrain.TerrainFlag.ROOM)
+                || !room.equals(kwdFile.getRoomByTerrain(terrain.getTerrainId()))) {
+            return;
+        }
+
+        roomThings.put(p, thing);
+        rememberFixedRoom(new Point(p.x, p.y - 1), room, thing, visited);
+        rememberFixedRoom(new Point(p.x + 1, p.y), room, thing, visited);
+        rememberFixedRoom(new Point(p.x, p.y + 1), room, thing, visited);
+        rememberFixedRoom(new Point(p.x - 1, p.y), room, thing, visited);
+    }
+
     /**
      * Find the room starting from a certain point, rooms are never diagonally
      * attached
@@ -761,6 +974,9 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      */
     private void findRoom(Point p, RoomInstance roomInstance, Thing.Room thing) {
         IMapTileInformation tile = getMapData().getTile(p);
+        if (tile == null || (fogOfWarEnabled && !tile.isExplored(playerId) && !tile.isScriptedVisible(playerId))) {
+            return;
+        }
 
         // Get the terrain
         Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
